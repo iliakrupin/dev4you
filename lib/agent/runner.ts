@@ -49,8 +49,13 @@ async function getTask(taskId: number): Promise<Task | null> {
 }
 
 function extractJson<T>(raw: string, schema: z.ZodType<T>): T {
-  // Иногда модель оборачивает JSON в ```json ... ```
   let text = raw.trim();
+  if (!text) {
+    throw new Error(
+      "LLM вернул пустой ответ (возможно сервер Qwen перегружен или Vercel прервал по timeout). Попробуйте ещё раз.",
+    );
+  }
+  // Иногда модель оборачивает JSON в ```json ... ```
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (fence) text = fence[1].trim();
   // Иногда добавляет leading prose — берём от первой { до последней }
@@ -59,8 +64,31 @@ function extractJson<T>(raw: string, schema: z.ZodType<T>): T {
   if (start >= 0 && end > start) {
     text = text.slice(start, end + 1);
   }
+  if (!text || text === "{}" || text.startsWith("{") === false) {
+    throw new Error(
+      `LLM не вернул валидный JSON. Ответ: ${raw.slice(0, 200)}`,
+    );
+  }
   const parsed = JSON.parse(text);
   return schema.parse(parsed);
+}
+
+async function callLlmJson(opts: {
+  system: string;
+  user: string;
+  maxTokens: number;
+}): Promise<string> {
+  const completion = await llm().chat.completions.create({
+    model: qwenModel(),
+    temperature: 0.2,
+    max_tokens: opts.maxTokens,
+    messages: [
+      { role: "system", content: opts.system },
+      { role: "user", content: opts.user },
+    ],
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0]?.message?.content ?? "";
 }
 
 // ---- analysis ----
@@ -105,19 +133,30 @@ export async function runAnalysis(taskId: number): Promise<void> {
   await logEvent(taskId, "analysis", "started", "Анализирую задачу…");
 
   try {
-    const completion = await llm().chat.completions.create({
-      model: qwenModel(),
-      temperature: 0.2,
-      max_tokens: 800,
-      messages: [
-        { role: "system", content: ANALYSIS_SYSTEM },
-        { role: "user", content: task.rawText },
-      ],
-      response_format: { type: "json_object" },
-    });
-
-    const raw = completion.choices[0]?.message?.content ?? "";
-    const spec = extractJson(raw, TaskSpecSchema);
+    let raw = "";
+    let spec: TaskSpec | null = null;
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        raw = await callLlmJson({
+          system: ANALYSIS_SYSTEM,
+          user: task.rawText,
+          maxTokens: 800,
+        });
+        spec = extractJson(raw, TaskSpecSchema);
+        break;
+      } catch (e) {
+        lastErr = e;
+        await logEvent(
+          taskId,
+          "analysis",
+          "progress",
+          `Попытка ${attempt} провалилась: ${e instanceof Error ? e.message : e}`,
+          { rawResponse: raw.slice(0, 500) },
+        );
+      }
+    }
+    if (!spec) throw lastErr ?? new Error("analysis failed");
 
     // Доп. фильтр sandbox: даже если LLM указала запрещённые файлы — выкинем
     spec.targetFiles = spec.targetFiles.filter(isAllowed);
@@ -176,19 +215,30 @@ export async function runImplement(taskId: number): Promise<void> {
       `Верни новое содержимое тех файлов, которые нужно изменить, в формате JSON.`,
     ].join("\n");
 
-    const completion = await llm().chat.completions.create({
-      model: qwenModel(),
-      temperature: 0.2,
-      max_tokens: 2000,
-      messages: [
-        { role: "system", content: IMPLEMENT_SYSTEM },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-    });
-
-    const raw = completion.choices[0]?.message?.content ?? "";
-    const parsed = extractJson(raw, FilesSchema);
+    let raw = "";
+    let parsed: z.infer<typeof FilesSchema> | null = null;
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        raw = await callLlmJson({
+          system: IMPLEMENT_SYSTEM,
+          user: userPrompt,
+          maxTokens: 2000,
+        });
+        parsed = extractJson(raw, FilesSchema);
+        break;
+      } catch (e) {
+        lastErr = e;
+        await logEvent(
+          taskId,
+          "implement",
+          "progress",
+          `Попытка ${attempt} провалилась: ${e instanceof Error ? e.message : e}`,
+          { rawResponse: raw.slice(0, 500) },
+        );
+      }
+    }
+    if (!parsed) throw lastErr ?? new Error("implement failed");
 
     // Sandbox-фильтр: выкидываем все, что вне whitelist
     const safeFiles = parsed.files.filter((f) => isAllowed(f.path));
