@@ -78,7 +78,10 @@ async function callLlmJson(opts: {
   user: string;
   maxTokens: number;
 }): Promise<string> {
-  const completion = await llm().chat.completions.create({
+  // Stream вместо обычного call — получаем токены по мере генерации,
+  // не упираемся в 22s timeout SDK на длинных ответах. Если Vercel
+  // прервёт по 25s — у нас будет хотя бы часть ответа.
+  const stream = await llm().chat.completions.create({
     model: qwenModel(),
     temperature: 0.2,
     max_tokens: opts.maxTokens,
@@ -87,8 +90,15 @@ async function callLlmJson(opts: {
       { role: "user", content: opts.user },
     ],
     response_format: { type: "json_object" },
+    stream: true,
   });
-  return completion.choices[0]?.message?.content ?? "";
+
+  let content = "";
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content;
+    if (delta) content += delta;
+  }
+  return content;
 }
 
 // ---- analysis ----
@@ -251,7 +261,8 @@ export async function runImplement(taskId: number): Promise<{ more: boolean }> {
       );
       pending = pending.slice(1);
       await setStatus(taskId, "implementing", { pendingFiles: pending });
-      return { more: pending.length > 0 || produced.length > 0 };
+      // Даже если skip — продолжаем (либо следующий файл, либо finalize)
+      return { more: true };
     }
 
     const userPrompt = [
@@ -276,7 +287,7 @@ export async function runImplement(taskId: number): Promise<{ more: boolean }> {
         raw = await callLlmJson({
           system: IMPLEMENT_SYSTEM,
           user: userPrompt,
-          maxTokens: 4000,
+          maxTokens: 2500,
         });
         parsed = extractJson(raw, FilesSchema);
         break;
