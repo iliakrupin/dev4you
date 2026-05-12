@@ -62,7 +62,7 @@ export function TaskDetail({ initialTask }: { initialTask: Task }) {
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Прогресс
         </h2>
-        <Timeline status={task.status} />
+        <Timeline status={task.status} errorMessage={task.errorMessage} />
       </section>
 
       {task.spec && (
