@@ -7,6 +7,7 @@ import { isAllowed } from "./sandbox";
 import {
   createBranch,
   getBaseBranchSha,
+  getCommit,
   getLatestMergeCommit,
   openPullRequest,
   readFile,
@@ -244,22 +245,96 @@ export async function runImplement(taskId: number): Promise<void> {
 }
 
 async function runRevert(taskId: number, task: Task): Promise<void> {
-  // Простейший вариант: возвращаем globals.css к стартовому состоянию.
-  // (Полный git revert через REST требует больше шагов — оставим на следующую итерацию.)
+  await logEvent(taskId, "implement", "progress", "Ищу коммит для отката");
+
+  const mergeSha = task.spec?.revertSha ?? (await getLatestMergeCommit());
+  if (!mergeSha) throw new Error("Не нашёл merge-коммит для отката");
+
+  // Получаем merge-коммит вместе со списком изменённых файлов и родителем.
+  const merge = await getCommit(mergeSha);
+  const parentSha = merge.parents[0]?.sha;
+  if (!parentSha) throw new Error(`У коммита ${mergeSha} нет родителя`);
+
+  const changedFiles = merge.files
+    .map((f) => f.filename)
+    .filter((p) => isAllowed(p));
+
+  if (changedFiles.length === 0) {
+    throw new Error("В целевом коммите нет файлов из sandbox для отката");
+  }
+
   await logEvent(
     taskId,
     "implement",
     "progress",
-    "Откат: возвращаю globals.css к стартовому состоянию",
+    `Откатываю ${changedFiles.length} файл(ов) до ${parentSha.slice(0, 7)}`,
+    { mergeSha, parentSha, files: changedFiles },
   );
 
-  const sha = task.spec?.revertSha ?? (await getLatestMergeCommit());
-  if (!sha) throw new Error("Не нашёл коммит для отката");
+  // Для каждого изменённого файла — берём содержимое из родителя merge-коммита
+  // (то есть из состояния "до того изменения") и записываем в новую ветку.
+  const restored: { path: string; content: string; sha?: string }[] = [];
+  for (const path of changedFiles) {
+    const parentFile = await readFile(path, parentSha);
+    const headFile = await readFile(path);
+    if (!parentFile) continue; // файл был создан этим merge — пропускаем (для MVP)
+    if (parentFile.content === headFile?.content) continue;
+    restored.push({
+      path,
+      content: parentFile.content,
+      sha: headFile?.sha,
+    });
+  }
 
-  // Берём содержимое целевых файлов из коммита sha~1 (родителя)
-  // Для простоты MVP: берём текущее содержимое и восстанавливаем дефолтные значения.
-  // TODO: правильнее — git revert через GraphQL Mutation createCommitOnBranch.
-  throw new Error(
-    "Откат пока не реализован полностью — реализуем во второй итерации.",
+  if (restored.length === 0) {
+    throw new Error("Откатывать нечего — файлы уже в нужном состоянии");
+  }
+
+  const baseSha = await getBaseBranchSha();
+  const branch = `task/${taskId}`;
+  await createBranch(branch, baseSha);
+
+  for (const f of restored) {
+    await writeFile({
+      path: f.path,
+      content: f.content,
+      branch,
+      message: `revert #${taskId}: вернуть ${f.path} к ${parentSha.slice(0, 7)}`.slice(
+        0,
+        72,
+      ),
+      prevSha: f.sha,
+    });
+  }
+
+  const pr = await openPullRequest({
+    branch,
+    title: `revert #${taskId}: ${task.spec?.goal ?? "откат изменений"}`.slice(
+      0,
+      72,
+    ),
+    body: [
+      `**Задача:** ${task.rawText}`,
+      ``,
+      `**Откат коммита:** \`${mergeSha.slice(0, 7)}\` → возвращаю к \`${parentSha.slice(0, 7)}\``,
+      ``,
+      `**Файлы:** ${restored.map((f) => `\`${f.path}\``).join(", ")}`,
+      ``,
+      `_Создано агентом ФичуЗадачу._`,
+    ].join("\n"),
+  });
+
+  await setStatus(taskId, "ready_for_review", {
+    branchName: branch,
+    prNumber: pr.number,
+    prUrl: pr.url,
+    touchedFiles: restored.map((f) => f.path),
+  });
+  await logEvent(
+    taskId,
+    "implement",
+    "finished",
+    `PR #${pr.number} с откатом открыт`,
+    { pr, mergeSha, parentSha },
   );
 }

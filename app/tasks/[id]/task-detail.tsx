@@ -12,6 +12,7 @@ const ACTIVE_STATUSES = new Set([
   "analyzed",
   "implementing",
   "implemented",
+  "ready_for_review",
   "testing",
   "tested",
   "deploying",

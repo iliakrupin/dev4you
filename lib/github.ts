@@ -104,6 +104,17 @@ export async function mergePullRequest(
   return { sha: data.sha };
 }
 
+export async function getCommit(sha: string): Promise<{
+  parents: { sha: string }[];
+  files: { filename: string }[];
+}> {
+  const { data } = await octokit.repos.getCommit({ owner, repo, ref: sha });
+  return {
+    parents: data.parents.map((p) => ({ sha: p.sha })),
+    files: (data.files ?? []).map((f) => ({ filename: f.filename })),
+  };
+}
+
 export async function getLatestMergeCommit(): Promise<string | null> {
   const { data } = await octokit.repos.listCommits({
     owner,

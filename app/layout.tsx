@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,6 +47,7 @@ export default function RootLayout({
           src="https://telegram.org/js/telegram-web-app.js?57"
           strategy="beforeInteractive"
         />
+        <AutoRefresh />
         {children}
       </body>
     </html>
