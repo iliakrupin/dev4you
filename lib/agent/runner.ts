@@ -64,12 +64,34 @@ function extractJson<T>(raw: string, schema: z.ZodType<T>): T {
 
 // ---- analysis ----
 
-const TaskSpecSchema: z.ZodType<TaskSpec> = z.object({
+// LLM иногда возвращает поля как массив, иногда как строку — нормализуем.
+const stringOrJoined = z
+  .union([z.string(), z.array(z.union([z.string(), z.unknown()]))])
+  .transform((v) =>
+    Array.isArray(v)
+      ? v
+          .map((x) => (typeof x === "string" ? x : JSON.stringify(x)))
+          .join("\n")
+      : v,
+  );
+
+const stringArrayLike = z
+  .union([z.array(z.string()), z.string()])
+  .transform((v) =>
+    Array.isArray(v)
+      ? v
+      : v
+          .split(/[,\n]/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+  );
+
+const TaskSpecSchema = z.object({
   goal: z.string(),
-  targetFiles: z.array(z.string()),
-  changes: z.string(),
-  acceptanceCriteria: z.array(z.string()),
-  operation: z.enum(["edit", "revert"]),
+  targetFiles: stringArrayLike,
+  changes: stringOrJoined,
+  acceptanceCriteria: stringArrayLike,
+  operation: z.enum(["edit", "revert"]).default("edit"),
   revertSha: z.string().optional(),
 });
 
