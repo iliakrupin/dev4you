@@ -38,6 +38,12 @@ export const tasks = pgTable("tasks", {
   status: taskStatusEnum("status").notNull().default("queued"),
   // Какие файлы агент менял
   touchedFiles: jsonb("touched_files").$type<string[]>().default([]),
+  // Очередь файлов на обработку (инкрементальный implement, по одному за HTTP)
+  pendingFiles: jsonb("pending_files").$type<string[] | null>().default(null),
+  // Уже сгенерированное LLM содержимое файлов (path → content)
+  producedFiles: jsonb("produced_files")
+    .$type<{ path: string; content: string; sha?: string }[] | null>()
+    .default(null),
   // Git
   branchName: text("branch_name"),
   prNumber: integer("pr_number"),

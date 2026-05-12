@@ -19,9 +19,19 @@ export async function POST(
     return NextResponse.json({ error: "bad id" }, { status: 400 });
   }
 
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ?? `https://${_req.headers.get("host")}`;
+
   after(async () => {
     try {
-      await runImplement(taskId);
+      const result = await runImplement(taskId);
+      if (result.more) {
+        // Ещё есть файлы / нужен finalize PR — триггерим следующий шаг
+        await fetch(`${appUrl}/api/tasks/${taskId}/implement`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     } catch (err) {
       console.error(`implement task #${taskId}`, err);
     }

@@ -176,43 +176,96 @@ const FilesSchema = z.object({
   files: z.array(z.object({ path: z.string(), content: z.string() })),
 });
 
-export async function runImplement(taskId: number): Promise<void> {
+/**
+ * Один шаг инкрементального implement: либо обрабатываем один файл из
+ * pendingFiles, либо (если очередь пуста) собираем PR. Возвращает true,
+ * если есть ещё работа — вызывающий код делает self-trigger.
+ */
+export async function runImplement(taskId: number): Promise<{ more: boolean }> {
   const task = await getTask(taskId);
-  if (!task) return;
-  if (task.status !== "analyzed" && task.status !== "implementing") return;
+  if (!task) return { more: false };
+  if (task.status !== "analyzed" && task.status !== "implementing") {
+    return { more: false };
+  }
   if (!task.spec) {
     await setStatus(taskId, "failed", { errorMessage: "implement: нет spec" });
-    return;
+    return { more: false };
   }
 
-  await setStatus(taskId, "implementing");
-  await logEvent(taskId, "implement", "started", "Пишу код…");
+  // revert идёт отдельным путём (не использует LLM на каждом файле)
+  if (task.spec.operation === "revert") {
+    await setStatus(taskId, "implementing");
+    await logEvent(taskId, "implement", "started", "Откатываю…");
+    try {
+      await runRevert(taskId, task);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await setStatus(taskId, "failed", { errorMessage: `implement: ${msg}` });
+      await logEvent(taskId, "implement", "error", msg);
+    }
+    return { more: false };
+  }
+
+  // Инициализация очереди файлов на первом вызове
+  let pending = task.pendingFiles;
+  let produced = task.producedFiles ?? [];
+  if (pending === null) {
+    pending = [...task.spec.targetFiles];
+    await setStatus(taskId, "implementing", {
+      pendingFiles: pending,
+      producedFiles: [],
+    });
+    await logEvent(
+      taskId,
+      "implement",
+      "started",
+      `Буду менять ${pending.length} файл(ов)`,
+      { files: pending },
+    );
+  }
+
+  // Если файлов больше нет — собираем PR
+  if (pending.length === 0) {
+    try {
+      await finalizeImplement(taskId, task, produced);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await setStatus(taskId, "failed", { errorMessage: `implement: ${msg}` });
+      await logEvent(taskId, "implement", "error", msg);
+    }
+    return { more: false };
+  }
+
+  // Берём один файл и делаем для него LLM-вызов
+  const path = pending[0];
+  await logEvent(taskId, "implement", "progress", `Меняю ${path}…`);
 
   try {
-    if (task.spec.operation === "revert") {
-      // revert обрабатываем отдельно — через PR с revert последнего merge
-      await runRevert(taskId, task);
-      return;
-    }
-
-    // Прочитать содержимое целевых файлов из main
-    const fileContents: Record<string, { content: string; sha: string }> = {};
-    for (const path of task.spec.targetFiles) {
-      const f = await readFile(path);
-      if (f) fileContents[path] = f;
+    const current = await readFile(path);
+    if (!current) {
+      await logEvent(
+        taskId,
+        "implement",
+        "progress",
+        `Файл ${path} не найден — пропускаю`,
+      );
+      pending = pending.slice(1);
+      await setStatus(taskId, "implementing", { pendingFiles: pending });
+      return { more: pending.length > 0 || produced.length > 0 };
     }
 
     const userPrompt = [
       `Задача: ${task.spec.goal}`,
-      `Изменения: ${task.spec.changes}`,
+      `Что изменить: ${task.spec.changes}`,
       ``,
-      `Текущее содержимое разрешённых файлов:`,
-      ...Object.entries(fileContents).map(
-        ([p, f]) =>
-          `--- FILE: ${p} ---\n${f.content}\n--- END FILE: ${p} ---`,
-      ),
+      `Сейчас редактируем ОДИН файл: ${path}`,
+      `Текущее содержимое:`,
+      `--- BEGIN ${path} ---`,
+      current.content,
+      `--- END ${path} ---`,
       ``,
-      `Верни новое содержимое тех файлов, которые нужно изменить, в формате JSON.`,
+      `Верни JSON: { "files": [ { "path": "${path}", "content": "<новое содержимое>" } ] }.`,
+      `Никаких других файлов.`,
     ].join("\n");
 
     let raw = "";
@@ -223,7 +276,7 @@ export async function runImplement(taskId: number): Promise<void> {
         raw = await callLlmJson({
           system: IMPLEMENT_SYSTEM,
           user: userPrompt,
-          maxTokens: 2000,
+          maxTokens: 4000,
         });
         parsed = extractJson(raw, FilesSchema);
         break;
@@ -233,69 +286,90 @@ export async function runImplement(taskId: number): Promise<void> {
           taskId,
           "implement",
           "progress",
-          `Попытка ${attempt} провалилась: ${e instanceof Error ? e.message : e}`,
-          { rawResponse: raw.slice(0, 500) },
+          `Попытка ${attempt} для ${path} провалилась: ${e instanceof Error ? e.message : e}`,
+          { rawResponse: raw.slice(0, 300) },
         );
       }
     }
     if (!parsed) throw lastErr ?? new Error("implement failed");
 
-    // Sandbox-фильтр: выкидываем все, что вне whitelist
-    const safeFiles = parsed.files.filter((f) => isAllowed(f.path));
-    if (safeFiles.length === 0) {
-      const tried = parsed.files.map((f) => f.path).join(", ") || "(пусто)";
+    const fileResult =
+      parsed.files.find((f) => f.path === path) ??
+      parsed.files.find((f) => isAllowed(f.path));
+    if (!fileResult || !isAllowed(fileResult.path)) {
       throw new Error(
-        `Модель попыталась изменить файлы, которые вне sandbox: ${tried}. ` +
-          `Разрешены только: ${ALLOWED_HINT.split("\n")[0]}, app/page.tsx, components/** и т.п.`,
+        `Модель не вернула правильный файл (ожидался ${path}, вернула: ${parsed.files.map((f) => f.path).join(", ")})`,
       );
     }
 
-    // Создаём ветку
-    const baseSha = await getBaseBranchSha();
-    const branch = `task/${taskId}`;
-    await createBranch(branch, baseSha);
+    produced = [
+      ...produced,
+      { path, content: fileResult.content, sha: current.sha },
+    ];
+    pending = pending.slice(1);
 
-    // Записываем файлы
-    for (const f of safeFiles) {
-      const prev = fileContents[f.path];
-      await writeFile({
-        path: f.path,
-        content: f.content,
-        branch,
-        message: `task #${taskId}: ${task.spec.goal}`.slice(0, 72),
-        prevSha: prev?.sha,
-      });
-    }
+    await setStatus(taskId, "implementing", {
+      pendingFiles: pending,
+      producedFiles: produced,
+    });
+    await logEvent(taskId, "implement", "progress", `Готов файл ${path}`);
 
-    // Открываем PR
-    const pr = await openPullRequest({
-      branch,
-      title: `task #${taskId}: ${task.spec.goal}`.slice(0, 72),
-      body: [
-        `**Задача:** ${task.rawText}`,
-        ``,
-        `**План:** ${task.spec.changes}`,
-        ``,
-        `**Файлы:** ${safeFiles.map((f) => `\`${f.path}\``).join(", ")}`,
-        ``,
-        `_Создано агентом ФичуЗадачу._`,
-      ].join("\n"),
-    });
-
-    await setStatus(taskId, "ready_for_review", {
-      branchName: branch,
-      prNumber: pr.number,
-      prUrl: pr.url,
-      touchedFiles: safeFiles.map((f) => f.path),
-    });
-    await logEvent(taskId, "implement", "finished", `PR #${pr.number} открыт`, {
-      pr,
-    });
+    return { more: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await setStatus(taskId, "failed", { errorMessage: `implement: ${msg}` });
     await logEvent(taskId, "implement", "error", msg);
+    return { more: false };
   }
+}
+
+async function finalizeImplement(
+  taskId: number,
+  task: Task,
+  produced: { path: string; content: string; sha?: string }[],
+): Promise<void> {
+  if (produced.length === 0) {
+    throw new Error("Не получилось сгенерировать ни одного файла");
+  }
+  if (!task.spec) throw new Error("нет spec");
+
+  const baseSha = await getBaseBranchSha();
+  const branch = `task/${taskId}`;
+  await createBranch(branch, baseSha);
+
+  for (const f of produced) {
+    await writeFile({
+      path: f.path,
+      content: f.content,
+      branch,
+      message: `task #${taskId}: ${task.spec.goal}`.slice(0, 72),
+      prevSha: f.sha,
+    });
+  }
+
+  const pr = await openPullRequest({
+    branch,
+    title: `task #${taskId}: ${task.spec.goal}`.slice(0, 72),
+    body: [
+      `**Задача:** ${task.rawText}`,
+      ``,
+      `**План:** ${task.spec.changes}`,
+      ``,
+      `**Файлы:** ${produced.map((f) => `\`${f.path}\``).join(", ")}`,
+      ``,
+      `_Создано агентом ФичуЗадачу._`,
+    ].join("\n"),
+  });
+
+  await setStatus(taskId, "ready_for_review", {
+    branchName: branch,
+    prNumber: pr.number,
+    prUrl: pr.url,
+    touchedFiles: produced.map((f) => f.path),
+  });
+  await logEvent(taskId, "implement", "finished", `PR #${pr.number} открыт`, {
+    pr,
+  });
 }
 
 async function runRevert(taskId: number, task: Task): Promise<void> {
