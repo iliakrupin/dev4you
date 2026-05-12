@@ -1,7 +1,8 @@
 import { after, NextResponse, type NextRequest } from "next/server";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, tasks } from "@/lib/db";
-import { runAnalysis, runImplement } from "@/lib/agent/runner";
+import { runAnalysis } from "@/lib/agent/runner";
 import { ANON_USER, validateInitData } from "@/lib/telegram";
 
 // Edge runtime даёт 25s timeout на Hobby (вместо 10s у nodejs).
@@ -41,14 +42,28 @@ export async function POST(req: NextRequest) {
     })
     .returning();
 
-  // Запускаем pipeline в фоне после возврата ответа.
-  // analysis (1 LLM call) + implement (1 LLM call + Octokit) последовательно.
+  // Запускаем analysis в after(). После успеха — fire-and-forget fetch
+  // на /api/tasks/[id]/implement, чтобы implement получил свои 25s
+  // отдельной Edge-функцией.
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ?? `https://${req.headers.get("host")}`;
   after(async () => {
     try {
       await runAnalysis(task.id);
-      await runImplement(task.id);
+      const [updated] = await db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.id, task.id))
+        .limit(1);
+      if (updated?.status === "analyzed") {
+        // не ждём ответа — нам важно только триггернуть отдельную функцию
+        await fetch(`${appUrl}/api/tasks/${task.id}/implement`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     } catch (err) {
-      console.error(`pipeline task #${task.id} failed`, err);
+      console.error(`analysis task #${task.id} failed`, err);
     }
   });
 
