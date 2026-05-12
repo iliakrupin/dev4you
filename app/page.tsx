@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
 import { TaskCard } from "@/components/task-card";
@@ -21,7 +20,7 @@ export default async function HomePage() {
           ФичуЗадачу
         </p>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Меняй меня полностью
+          Список задач
         </h1>
         <p className="text-sm text-muted-foreground">
           Опишите фичу — AI-агент напишет код, протестирует и выкатит на стенд.
