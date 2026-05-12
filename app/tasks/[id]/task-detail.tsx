@@ -58,16 +58,14 @@ export function TaskDetail({ initialTask }: { initialTask: Task }) {
         </p>
       </section>
 
-      <section className="rounded-2xl border border-border bg-surface p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Прогресс
-        </h2>
-        <Timeline status={task.status} errorMessage={task.errorMessage} />
-      </section>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Прогресс
+      </h2>
+      <Timeline status={task.status} errorMessage={task.errorMessage} />
 
       {task.spec && (
-        <section className="rounded-2xl border border-border bg-surface p-5">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             План
           </h2>
           <p className="text-sm text-foreground">{task.spec.goal}</p>
@@ -79,14 +77,14 @@ export function TaskDetail({ initialTask }: { initialTask: Task }) {
               </code>
             </p>
           )}
-        </section>
+        </>
       )}
 
       {task.errorMessage && (
-        <section className="rounded-2xl border border-danger/30 bg-danger/5 p-5">
-          <h2 className="mb-2 text-sm font-semibold text-danger">Ошибка</h2>
+        <>
+          <h2 className="text-sm font-semibold text-danger">Ошибка</h2>
           <p className="text-sm text-danger/90">{task.errorMessage}</p>
-        </section>
+        </>
       )}
 
       {task.previewUrl && (
