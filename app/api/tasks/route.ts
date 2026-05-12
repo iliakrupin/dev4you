@@ -4,8 +4,10 @@ import { db, tasks } from "@/lib/db";
 import { runAnalysis, runImplement } from "@/lib/agent/runner";
 import { ANON_USER, validateInitData } from "@/lib/telegram";
 
-export const runtime = "nodejs"; // Octokit + Neon работают и в edge, но nodejs стабильнее
-export const maxDuration = 60;
+// Edge runtime даёт 25s timeout на Hobby (вместо 10s у nodejs).
+// Это критично — analysis + implement делают по LLM-вызову + Octokit.
+export const runtime = "edge";
+export const maxDuration = 25;
 
 const BodySchema = z.object({
   text: z.string().min(5).max(2000),

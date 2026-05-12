@@ -8,6 +8,22 @@ const owner = env.GITHUB_OWNER;
 const repo = env.GITHUB_REPO;
 const baseBranch = env.GITHUB_BASE_BRANCH;
 
+// Edge-friendly base64 (без Node Buffer)
+function b64encode(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+function b64decode(b64: string): string {
+  // GitHub возвращает base64 со переводами строк — atob их не любит
+  const bin = atob(b64.replace(/\s/g, ""));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
 export async function getBaseBranchSha(): Promise<string> {
   const { data } = await octokit.git.getRef({
     owner,
@@ -42,7 +58,7 @@ export async function readFile(
       ref,
     });
     if (Array.isArray(data) || data.type !== "file") return null;
-    const content = Buffer.from(data.content, "base64").toString("utf-8");
+    const content = b64decode(data.content);
     return { content, sha: data.sha };
   } catch (e: unknown) {
     if (
@@ -71,7 +87,7 @@ export async function writeFile(opts: {
     path: opts.path,
     branch: opts.branch,
     message: opts.message,
-    content: Buffer.from(opts.content, "utf-8").toString("base64"),
+    content: b64encode(opts.content),
     sha: opts.prevSha,
   });
 }

@@ -3,8 +3,8 @@ import { eq } from "drizzle-orm";
 import { db, tasks, taskEvents } from "@/lib/db";
 import { mergePullRequest } from "@/lib/github";
 
-export const runtime = "nodejs";
-export const maxDuration = 30;
+export const runtime = "edge";
+export const maxDuration = 25;
 
 /**
  * Webhook от GitHub на событие `deployment_status`.
