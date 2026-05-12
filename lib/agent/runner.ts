@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db, tasks, taskEvents, type Task, type TaskSpec } from "@/lib/db";
 import { llm, qwenModel } from "./llm";
 import { ANALYSIS_SYSTEM, IMPLEMENT_SYSTEM } from "./prompts";
-import { isAllowed } from "./sandbox";
+import { ALLOWED_HINT, isAllowed } from "./sandbox";
 import {
   createBranch,
   getBaseBranchSha,
@@ -193,7 +193,11 @@ export async function runImplement(taskId: number): Promise<void> {
     // Sandbox-фильтр: выкидываем все, что вне whitelist
     const safeFiles = parsed.files.filter((f) => isAllowed(f.path));
     if (safeFiles.length === 0) {
-      throw new Error("Модель не вернула изменений в разрешённых файлах");
+      const tried = parsed.files.map((f) => f.path).join(", ") || "(пусто)";
+      throw new Error(
+        `Модель попыталась изменить файлы, которые вне sandbox: ${tried}. ` +
+          `Разрешены только: ${ALLOWED_HINT.split("\n")[0]}, app/page.tsx, components/** и т.п.`,
+      );
     }
 
     // Создаём ветку
