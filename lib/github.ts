@@ -120,6 +120,19 @@ export async function mergePullRequest(
   return { sha: data.sha };
 }
 
+export async function findPullRequestForSha(
+  sha: string,
+): Promise<{ number: number; head: string } | null> {
+  const { data } = await octokit.repos.listPullRequestsAssociatedWithCommit({
+    owner,
+    repo,
+    commit_sha: sha,
+  });
+  const pr = data.find((p) => p.head.ref.startsWith("task/"));
+  if (!pr) return null;
+  return { number: pr.number, head: pr.head.ref };
+}
+
 export async function getCommit(sha: string): Promise<{
   parents: { sha: string }[];
   files: { filename: string }[];

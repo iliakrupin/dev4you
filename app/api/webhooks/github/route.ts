@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, tasks, taskEvents } from "@/lib/db";
-import { mergePullRequest } from "@/lib/github";
+import { findPullRequestForSha, mergePullRequest } from "@/lib/github";
 
 export const runtime = "edge";
 export const maxDuration = 25;
@@ -50,21 +50,25 @@ export async function POST(req: NextRequest) {
 
   const state = body.deployment_status?.state;
   const env = body.deployment?.environment ?? body.deployment_status?.environment ?? "";
-  const branch = body.deployment?.ref ?? "";
+  // GitHub передаёт в deployment.ref commit SHA, а не имя ветки
+  const sha = body.deployment?.sha ?? body.deployment?.ref ?? "";
 
-  // Интересуют только успешные preview-деплои наших task-веток
   if (state !== "success") {
     return NextResponse.json({ ok: true, ignored: `state=${state}` });
   }
-  if (!branch.startsWith("task/")) {
-    return NextResponse.json({ ok: true, ignored: `branch=${branch}` });
-  }
-  // Vercel помечает production deploys по-другому; preview-окружения обычно
-  // содержат имя проекта или "Preview". Игнорируем production, чтобы не
-  // мержить уже смерженный PR.
   if (env.toLowerCase() === "production") {
     return NextResponse.json({ ok: true, ignored: "env=production" });
   }
+  if (!sha) {
+    return NextResponse.json({ ok: true, ignored: "no sha" });
+  }
+
+  // По SHA находим PR и его head-ветку
+  const pr = await findPullRequestForSha(sha);
+  if (!pr) {
+    return NextResponse.json({ ok: true, ignored: `no task PR for ${sha.slice(0, 7)}` });
+  }
+  const branch = pr.head;
 
   const [task] = await db
     .select()
