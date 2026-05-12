@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ФичуЗадачу (`dev4you`)
 
-## Getting Started
+> Поставил задачу — получил фичу. Аналитик без разработчиков.
 
-First, run the development server:
+Multi-agent демо-система: пользователь описывает фичу (например, «сделай акцентный цвет красным») в Telegram Mini App — AI-агент формализует задачу, пишет код, открывает PR, ждёт сборку preview-стенда от Vercel и автоматически мерджит в `main`. Приложение перерисовывает само себя.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Стек
+
+- **Next.js 16** App Router (TypeScript, React 19, Tailwind v4)
+- **Vercel Postgres / Neon** + **Drizzle ORM**
+- **OpenAI SDK** → внутренний **Qwen 3.5 27B** (OpenAI-совместимый endpoint)
+- **Octokit REST** для git-операций (ветки, PR, мерджи)
+- **Telegram Mini App** + HMAC-валидация `initData`
+- Деплой на **Vercel Hobby** (10 s serverless timeout — pipeline разрезан на короткие шаги)
+
+## Архитектура одного запуска
+
+```
+[Mini App: новая задача]
+        ↓ POST /api/tasks
+[insert task → after()]
+        ↓
+[runAnalysis]  — 1 LLM call → spec JSON
+        ↓
+[runImplement] — 1 LLM call → новое содержимое файлов из whitelist
+        ↓ Octokit: branch + commit + PR
+[Vercel собирает preview]
+        ↓ webhook deployment.succeeded
+[авто-merge PR через Octokit] — main обновлён, продакшен перерисовывается
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Sandbox
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Агент имеет право менять только перечень файлов из whitelist (см. [`lib/agent/sandbox.ts`](lib/agent/sandbox.ts)) — в первую очередь `app/globals.css` и `tailwind.config.ts`. Любая попытка записи вне whitelist падает с `SandboxError`. Системные промпты содержат защиту от prompt-injection.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Локальная разработка
 
-## Learn More
+```bash
+pnpm install
+cp .env.example .env.local   # заполнить секреты
+pnpm db:push                 # создать таблицы в Postgres
+pnpm dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Подробности по переменным окружения — в [`.env.example`](.env.example).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Деплой
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Проект разворачивается на Vercel + Vercel Postgres. После создания проекта в Vercel:
+1. Подключите Vercel Postgres (Storage → Create Database).
+2. Заполните остальные env vars из `.env.example`.
+3. Запустите `pnpm db:push` локально с production `DATABASE_URL`, чтобы создать таблицы.
+4. Настройте Vercel webhook на `https://<ваш-домен>/api/webhooks/vercel` с событиями `deployment.created`, `deployment.succeeded`, `deployment.error`.
+5. У `@BotFather` в Telegram: `/newapp` → URL = `https://<ваш-домен>`.
 
-## Deploy on Vercel
+## Лицензия
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT.
