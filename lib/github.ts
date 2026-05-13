@@ -24,13 +24,63 @@ function b64decode(b64: string): string {
   return new TextDecoder().decode(bytes);
 }
 
+// Кэш base-SHA на 30 секунд: SHA main меняется редко, экономит 1 API call на задачу
+let baseShaCache: { sha: string; ts: number } | null = null;
+const BASE_SHA_TTL_MS = 30_000;
+
 export async function getBaseBranchSha(): Promise<string> {
+  const now = Date.now();
+  if (baseShaCache && now - baseShaCache.ts < BASE_SHA_TTL_MS) {
+    return baseShaCache.sha;
+  }
   const { data } = await octokit.git.getRef({
     owner,
     repo,
     ref: `heads/${baseBranch}`,
   });
+  baseShaCache = { sha: data.object.sha, ts: now };
   return data.object.sha;
+}
+
+/**
+ * Один GraphQL вызов записывает все файлы коммитом — экономит N-1 REST вызовов
+ * по сравнению с writeFile в цикле. GitLab имеет похожий API (commits.create
+ * с массивом actions), так что переход не закроет дверь.
+ */
+export async function commitMultipleFiles(opts: {
+  branch: string;
+  expectedHeadOid: string;
+  message: string;
+  files: { path: string; content: string }[];
+}): Promise<{ oid: string }> {
+  for (const f of opts.files) assertAllowed(f.path);
+
+  const result = await octokit.graphql<{
+    createCommitOnBranch: { commit: { oid: string } };
+  }>(
+    `mutation($input: CreateCommitOnBranchInput!) {
+      createCommitOnBranch(input: $input) {
+        commit { oid }
+      }
+    }`,
+    {
+      input: {
+        branch: {
+          repositoryNameWithOwner: `${owner}/${repo}`,
+          branchName: opts.branch,
+        },
+        message: { headline: opts.message.slice(0, 72) },
+        expectedHeadOid: opts.expectedHeadOid,
+        fileChanges: {
+          additions: opts.files.map((f) => ({
+            path: f.path,
+            contents: b64encode(f.content),
+          })),
+        },
+      },
+    },
+  );
+  return { oid: result.createCommitOnBranch.commit.oid };
 }
 
 export async function createBranch(

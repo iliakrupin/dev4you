@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, tasks, taskEvents } from "@/lib/db";
-import { findPullRequestForSha, mergePullRequest } from "@/lib/github";
+import { mergePullRequest } from "@/lib/github";
 
 export const runtime = "edge";
 export const maxDuration = 25;
@@ -50,8 +50,6 @@ export async function POST(req: NextRequest) {
 
   const state = body.deployment_status?.state;
   const env = body.deployment?.environment ?? body.deployment_status?.environment ?? "";
-  // GitHub передаёт в deployment.ref commit SHA, а не имя ветки
-  const sha = body.deployment?.sha ?? body.deployment?.ref ?? "";
 
   // Игнорим production и in_progress — нас интересуют только preview success/failure
   if (env.toLowerCase() === "production") {
@@ -60,16 +58,14 @@ export async function POST(req: NextRequest) {
   if (state !== "success" && state !== "failure" && state !== "error") {
     return NextResponse.json({ ok: true, ignored: `state=${state}` });
   }
-  if (!sha) {
-    return NextResponse.json({ ok: true, ignored: "no sha" });
+  // Идентифицируем task по preview URL (содержит "task-N") — без GitHub API
+  // call. Раньше делали findPullRequestForSha — экономим вызов.
+  const targetUrl = body.deployment_status?.target_url ?? "";
+  const taskFromUrl = targetUrl.match(/dev4you-git-task-(\d+)-/);
+  if (!taskFromUrl) {
+    return NextResponse.json({ ok: true, ignored: `no task in url: ${targetUrl}` });
   }
-
-  // По SHA находим PR и его head-ветку
-  const pr = await findPullRequestForSha(sha);
-  if (!pr) {
-    return NextResponse.json({ ok: true, ignored: `no task PR for ${sha.slice(0, 7)}` });
-  }
-  const branch = pr.head;
+  const branch = `task/${taskFromUrl[1]}`;
 
   const [task] = await db
     .select()

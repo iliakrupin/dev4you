@@ -5,6 +5,7 @@ import { llm, qwenModel } from "./llm";
 import { ANALYSIS_SYSTEM, IMPLEMENT_SYSTEM } from "./prompts";
 import { ALLOWED_HINT, isAllowed } from "./sandbox";
 import {
+  commitMultipleFiles,
   createBranch,
   getBaseBranchSha,
   getCommit,
@@ -349,15 +350,13 @@ async function finalizeImplement(
   const branch = `task/${taskId}`;
   await createBranch(branch, baseSha);
 
-  for (const f of produced) {
-    await writeFile({
-      path: f.path,
-      content: f.content,
-      branch,
-      message: `task #${taskId}: ${task.spec.goal}`.slice(0, 72),
-      prevSha: f.sha,
-    });
-  }
+  // Один GraphQL вызов вместо writeFile × N — экономия (N-1) GitHub API calls
+  await commitMultipleFiles({
+    branch,
+    expectedHeadOid: baseSha,
+    message: `task #${taskId}: ${task.spec.goal}`,
+    files: produced.map((f) => ({ path: f.path, content: f.content })),
+  });
 
   const pr = await openPullRequest({
     branch,
