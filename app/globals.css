@@ -6,18 +6,18 @@
  * выполняя демо-задачу "сменить цвета темы".
  */
 :root {
-  --background: #e8f5e9;
-  --foreground: #1a2332;
-  --surface: #ffffff;
-  --surface-muted: #f0f4f8;
-  --border: #e2e8f0;
-  --accent: #f97316;
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --surface: #1e293b;
+  --surface-muted: #334155;
+  --border: #334155;
+  --accent: #8b5cf6;
   --accent-foreground: #ffffff;
   --accent-soft: #ede9fe;
-  --muted-foreground: #5b6c7a;
-  --success: #16a34a;
+  --muted-foreground: #94a3b8;
+  --success: #10b981;
   --warning: #f59e0b;
-  --danger: #dc2626;
+  --error: #ef4444;
   --status-testing: #3b82f6;
 }
 
