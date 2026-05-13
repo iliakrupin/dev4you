@@ -56,6 +56,8 @@ export function TaskCard({ task }: { task: Task }) {
     window.location.reload();
   };
 
+  const displayStatus = task.status === 'merged' && currentSha !== task.mergeCommitSha ? 'deploying' : task.status;
+
   return (
     <div className="group block rounded-2xl border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -68,7 +70,7 @@ export function TaskCard({ task }: { task: Task }) {
             {task.telegramUsername ? ` · @${task.telegramUsername}` : ""}
           </p>
         </div>
-        <StatusBadge status={task.status} />
+        <StatusBadge status={displayStatus} />
       </div>
       
       {/* Timeline прогресса по этапам */}
