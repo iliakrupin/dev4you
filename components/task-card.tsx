@@ -163,6 +163,16 @@ export function TaskCard({ task }: { task: Task }) {
           <code className="font-mono">{task.spec.filesToDelete.join(", ")}</code>
         </div>
       )}
+      {task.spec?.changes && (
+        <details className="text-xs mt-2 text-muted-foreground">
+          <summary className="cursor-pointer font-medium hover:text-foreground">
+            Что именно поменяет
+          </summary>
+          <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
+            {task.spec.changes}
+          </pre>
+        </details>
+      )}
       {task.errorMessage && (
         <div className="text-xs mt-3 text-danger">
           <span className="font-medium">Ошибка:</span> {task.errorMessage}
