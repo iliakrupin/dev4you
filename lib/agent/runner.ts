@@ -233,9 +233,43 @@ export async function runAnalysis(taskId: number): Promise<void> {
 
 // ---- implement ----
 
+// Старый формат (на случай если LLM вернёт полное содержимое файла)
 const FilesSchema = z.object({
   files: z.array(z.object({ path: z.string(), content: z.string() })),
 });
+
+// Новый diff-формат: список find/replace для одного файла
+const EditsSchema = z.object({
+  edits: z.array(
+    z.object({
+      find: z.string(),
+      replace: z.string(),
+    }),
+  ),
+});
+
+/**
+ * Применяет список замен к файлу. Каждая find должна найтись в текущем
+ * содержимом ровно (может встречаться несколько раз — заменим все вхождения).
+ */
+function applyEdits(
+  source: string,
+  edits: { find: string; replace: string }[],
+): { content: string; applied: number; missing: string[] } {
+  let result = source;
+  let applied = 0;
+  const missing: string[] = [];
+  for (const e of edits) {
+    if (!e.find) continue;
+    if (!result.includes(e.find)) {
+      missing.push(e.find.slice(0, 60));
+      continue;
+    }
+    result = result.split(e.find).join(e.replace);
+    applied++;
+  }
+  return { content: result, applied, missing };
+}
 
 /**
  * Один шаг инкрементального implement: либо обрабатываем один файл из
@@ -320,30 +354,27 @@ export async function runImplement(taskId: number): Promise<{ more: boolean }> {
       `Задача: ${task.spec.goal}`,
       `Что изменить: ${task.spec.changes}`,
       ``,
-      `Сейчас редактируем ОДИН файл: ${path}`,
+      `Файл: ${path}`,
       `Текущее содержимое:`,
-      `--- BEGIN ${path} ---`,
       current.content,
-      `--- END ${path} ---`,
       ``,
-      `Верни JSON: { "files": [ { "path": "${path}", "content": "<новое содержимое>" } ] }.`,
-      `Никаких других файлов.`,
+      `Верни список точечных замен (find/replace) в JSON-формате:`,
+      `{ "edits": [{ "find": "...", "replace": "..." }] }`,
+      `Каждая find — буквальная подстрока ИЗ файла выше, replace — её новая версия.`,
     ].join("\n");
 
     let raw = "";
-    let parsed: z.infer<typeof FilesSchema> | null = null;
+    let parsed: z.infer<typeof EditsSchema> | null = null;
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         raw = await callLlmJson({
           system: IMPLEMENT_SYSTEM,
           user: userPrompt,
-          maxTokens: 4000,
-          // Non-streaming для implement: на больших файлах stream обрывает
-          // JSON-строку посередине ("Unterminated string at position X").
+          maxTokens: 1500, // diff-формат короткий, 1500 токенов хватает на 5-10 замен
           stream: false,
         });
-        parsed = extractJson(raw, FilesSchema);
+        parsed = extractJson(raw, EditsSchema);
         break;
       } catch (e) {
         lastErr = e;
@@ -359,18 +390,30 @@ export async function runImplement(taskId: number): Promise<{ more: boolean }> {
     }
     if (!parsed) throw lastErr ?? new Error("implement failed");
 
-    const fileResult =
-      parsed.files.find((f) => f.path === path) ??
-      parsed.files.find((f) => isAllowed(f.path));
-    if (!fileResult || !isAllowed(fileResult.path)) {
+    if (parsed.edits.length === 0) {
       throw new Error(
-        `Модель не вернула правильный файл (ожидался ${path}, вернула: ${parsed.files.map((f) => f.path).join(", ")})`,
+        `Модель не вернула ни одной замены для ${path} — возможно, не смогла найти что менять`,
+      );
+    }
+
+    const result = applyEdits(current.content, parsed.edits);
+    if (result.applied === 0) {
+      throw new Error(
+        `Ни одна замена не применилась — find-строки не найдены в файле. Промахи: ${result.missing.join("; ")}`,
+      );
+    }
+    if (result.missing.length > 0) {
+      await logEvent(
+        taskId,
+        "implement",
+        "progress",
+        `Применено ${result.applied}/${parsed.edits.length} замен. Промахи: ${result.missing.join("; ")}`,
       );
     }
 
     produced = [
       ...produced,
-      { path, content: fileResult.content, sha: current.sha },
+      { path, content: result.content, sha: current.sha },
     ];
     pending = pending.slice(1);
 
