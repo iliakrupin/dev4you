@@ -3,14 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Опрашивает /api/version раз в 4 секунды. Когда commit SHA сменился
- * относительно того, с которым страница загрузилась — показываем
- * мягкое уведомление и через 1.5 с делаем hard reload, чтобы зрители
- * увидели новую тему вживую.
+ * Опрашивает /api/version. Когда commit SHA сменился относительно того,
+ * с которым страница загрузилась — показываем banner с кнопкой "Обновить".
+ *
+ * НЕ делаем автоматический window.location.reload — в Telegram WebView
+ * это приводило к ошибке "This page couldn't load", если reload совпадал
+ * с user-initiated действием (например клик удалить).
  */
 export function AutoRefresh() {
   const initial = useRef<string | null>(null);
-  const [updating, setUpdating] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,8 +26,7 @@ export function AutoRefresh() {
           return;
         }
         if (sha !== initial.current && !cancelled) {
-          setUpdating(true);
-          setTimeout(() => window.location.reload(), 1500);
+          setUpdateAvailable(true);
         }
       } catch {
         /* swallow */
@@ -39,14 +40,14 @@ export function AutoRefresh() {
     };
   }, []);
 
-  if (!updating) return null;
+  if (!updateAvailable) return null;
 
   return (
-    <div
-      role="status"
-      className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-lg"
+    <button
+      onClick={() => window.location.reload()}
+      className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-lg active:scale-95"
     >
-      Обновляюсь…
-    </div>
+      Доступно обновление — нажмите
+    </button>
   );
 }
