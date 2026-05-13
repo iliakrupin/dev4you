@@ -1,3 +1,4 @@
+"use client";
 import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
@@ -17,6 +18,12 @@ export default async function HomePage() {
     .orderBy(desc(tasks.createdAt))
     .limit(5);
 
+  const handleClear = async () => {
+    if (!confirm("Удалить ВСЕ задачи?")) return;
+    await fetch("/api/tasks/clear", { method: "POST" });
+    window.location.reload();
+  };
+
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-4 pb-28 pt-6">
       <ListAutoRefresh />
@@ -30,7 +37,7 @@ export default async function HomePage() {
         <p className="text-sm text-muted-foreground">
           Опишите фичу — AI-агент напишет код, протестирует и выкатит на стенд.
         </p>
-        <button className="text-sm text-muted-foreground hover:text-foreground">
+        <button onClick={handleClear} className="text-sm text-muted-foreground hover:text-foreground">
           Очистить
         </button>
       </header>
