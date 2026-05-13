@@ -233,6 +233,39 @@ export async function findPullRequestForSha(
   return { number: pr.number, head: pr.head.ref };
 }
 
+/**
+ * Получает все файлы whitelist по конкретному ref (tag/branch/sha).
+ * Используется для reset-to-baseline: читаем дерево из tag demo-baseline
+ * и записываем его обратно в main.
+ */
+export async function getAllowedFilesAtRef(
+  ref: string,
+): Promise<{ path: string; content: string }[]> {
+  const tree = await octokit.git.getTree({
+    owner,
+    repo,
+    tree_sha: ref,
+    recursive: "true",
+  });
+  const allowed = (tree.data.tree ?? [])
+    .filter((e) => e.type === "blob" && e.path)
+    .map((e) => e.path!)
+    .filter((p) => {
+      try {
+        assertAllowed(p);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  const out: { path: string; content: string }[] = [];
+  for (const path of allowed) {
+    const f = await readFile(path, ref);
+    if (f) out.push({ path, content: f.content });
+  }
+  return out;
+}
+
 export async function getCommit(sha: string): Promise<{
   parents: { sha: string }[];
   files: { filename: string }[];
