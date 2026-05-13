@@ -113,8 +113,28 @@ export function TaskCard({ task, onDelete }: { task: Task; onDelete?: () => void
         </div>
       </div>
       
-      {task.spec?.goal && <div className='text-xs mt-3'><span className='font-medium'>Как понял агент:</span> <span>{task.spec.goal}</span></div>}
-      {task.errorMessage && <div className='text-xs mt-3 text-danger'><span className='font-medium'>Ошибка:</span> <span>{task.errorMessage}</span></div>}
+      {task.spec?.goal && (
+        <div className="text-xs mt-3">
+          <span className="font-medium">Как понял агент:</span> {task.spec.goal}
+        </div>
+      )}
+      {task.spec?.targetFiles && task.spec.targetFiles.length > 0 && (
+        <div className="text-xs mt-2 text-muted-foreground">
+          <span className="font-medium">Будет править:</span>{" "}
+          <code className="font-mono">{task.spec.targetFiles.join(", ")}</code>
+        </div>
+      )}
+      {task.spec?.filesToDelete && task.spec.filesToDelete.length > 0 && (
+        <div className="text-xs mt-1 text-danger">
+          <span className="font-medium">Удалит:</span>{" "}
+          <code className="font-mono">{task.spec.filesToDelete.join(", ")}</code>
+        </div>
+      )}
+      {task.errorMessage && (
+        <div className="text-xs mt-3 text-danger">
+          <span className="font-medium">Ошибка:</span> {task.errorMessage}
+        </div>
+      )}
       {task.status === 'failed' && (
         <button 
           onClick={handleRetry}
