@@ -74,7 +74,8 @@ export function TaskCard({ task }: { task: Task }) {
     try {
       await fetch(`/api/tasks/${task.id}/delete`, { method: "DELETE" });
     } catch (error) {
-      alert('Не удалось удалить: ' + error.message);
+      const msg = error instanceof Error ? error.message : String(error);
+      alert("Не удалось удалить: " + msg);
       setDeleted(false);
     }
   };
