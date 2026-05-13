@@ -4,14 +4,21 @@ import type { Task } from "@/lib/db/schema";
 
 export function TaskCard({ task }: { task: Task }) {
   const getProgressWidth = () => {
-    switch (task.status) {
-      case "completed":
-        return "100%";
-      case "in_progress":
-        return "50%";
-      default:
-        return "0%";
-    }
+    const progressMap: Record<string, string> = {
+      queued: "10%",
+      analyzing: "20%",
+      analyzed: "30%",
+      implementing: "45%",
+      implemented: "60%",
+      ready_for_review: "70%",
+      testing: "80%",
+      tested: "90%",
+      deploying: "95%",
+      merged: "100%",
+      failed: "0%",
+      cancelled: "0%",
+    };
+    return progressMap[task.status] ?? "0%";
   };
 
   return (
