@@ -9,9 +9,7 @@ export default function NewTaskPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Новая задача
         </h1>
-        <p className="text-sm text-muted-foreground">
-          Опишите, что нужно сделать. Агент уточнит детали и выполнит работу.
-        </p>
+
       </header>
 
       <NewTaskForm />
