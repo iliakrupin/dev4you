@@ -1,4 +1,5 @@
 'use client';
+import { useState, useEffect } from 'react';
 import { StatusBadge } from "@/components/status-badge";
 import { formatRelative } from "@/lib/utils";
 import type { Task } from "@/lib/db/schema";
@@ -12,6 +13,22 @@ const ACTIVE_STATUSES = [
 ];
 
 export function TaskCard({ task }: { task: Task }) {
+  const [currentSha, setCurrentSha] = useState<string | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch('/api/version');
+        const data = await response.json();
+        setCurrentSha(data.sha);
+      } catch (error) {
+        console.error('Failed to fetch version:', error);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const getProgressWidth = () => {
     const progressMap: Record<string, string> = {
       queued: "10%",
@@ -23,7 +40,7 @@ export function TaskCard({ task }: { task: Task }) {
       testing: "80%",
       tested: "90%",
       deploying: "95%",
-      merged: "100%",
+      merged: currentSha === task.mergeCommitSha ? "100%" : "95%",
       failed: "0%",
       cancelled: "0%",
     };
