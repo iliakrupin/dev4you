@@ -1,3 +1,4 @@
+'use client';
 import { StatusBadge } from "@/components/status-badge";
 import { formatRelative } from "@/lib/utils";
 import type { Task } from "@/lib/db/schema";
@@ -27,6 +28,15 @@ export function TaskCard({ task }: { task: Task }) {
       cancelled: "0%",
     };
     return progressMap[task.status] ?? "0%";
+  };
+
+  const handleRetry = async () => {
+    await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: task.rawText }),
+    });
+    window.location.reload();
   };
 
   return (
@@ -63,6 +73,14 @@ export function TaskCard({ task }: { task: Task }) {
       
       {task.spec?.goal && <div className='text-xs mt-3'><span className='font-medium'>Как понял агент:</span> <span>{task.spec.goal}</span></div>}
       {task.errorMessage && <div className='text-xs mt-3 text-danger'><span className='font-medium'>Ошибка:</span> <span>{task.errorMessage}</span></div>}
+      {task.status === 'failed' && (
+        <button 
+          onClick={handleRetry}
+          className="rounded-lg bg-accent text-accent-foreground px-3 py-1.5 text-xs mt-3"
+        >
+          Повторить
+        </button>
+      )}
     </div>
   );
 }
