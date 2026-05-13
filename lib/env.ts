@@ -37,7 +37,14 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
   emptyStringAsUndefined: true,
-  skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
+  // Vercel Preview environments часто не имеют всех env vars (особенно
+  // секретов с галочкой только Production). Чтобы PR-сборка не падала
+  // на T3 Env validation, скипуем её для preview/develop. Реальные
+  // ошибки всё равно вылезут в runtime.
+  skipValidation:
+    process.env.SKIP_ENV_VALIDATION === "true" ||
+    process.env.VERCEL_ENV === "preview" ||
+    process.env.VERCEL_ENV === "development",
   // Лучшее сообщение об ошибке в Vercel build logs
   onValidationError: (issues) => {
     console.error("\n❌ Invalid environment variables:");
