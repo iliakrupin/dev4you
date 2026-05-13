@@ -28,7 +28,7 @@ export default async function HomePage() {
           AI-конвеер
         </h1>
         <p className="text-sm text-muted-foreground">
-          Опишите фичу — AI-агент напишет код, протестирует и выкатит на стенд.
+          Опиши, что поменять в UI — агент напишет код, протестирует и выкатит на стенд.
         </p>
       </header>
 
