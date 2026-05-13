@@ -6,15 +6,15 @@
  * выполняя демо-задачу "сменить цвета темы".
  */
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #e8f5e9;
+  --foreground: #1a2332;
   --surface: #ffffff;
-  --surface-muted: #f1f5f9;
+  --surface-muted: #f0f4f8;
   --border: #e2e8f0;
-  --accent: #6366f1;
+  --accent: #7c3aed;
   --accent-foreground: #ffffff;
-  --accent-soft: #eef2ff;
-  --muted-foreground: #64748b;
+  --accent-soft: #ede9fe;
+  --muted-foreground: #5b6c7a;
   --success: #16a34a;
   --warning: #f59e0b;
   --danger: #dc2626;
@@ -41,15 +41,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0b1220;
-    --foreground: #e2e8f0;
+    --background: #0d1117;
+    --foreground: #c9d1d9;
     --surface: #111827;
-    --surface-muted: #1f2937;
+    --surface-muted: #21262d;
     --border: #1f2937;
-    --accent: #818cf8;
+    --accent: #a78bfa;
     --accent-foreground: #0b1220;
-    --accent-soft: #1e293b;
-    --muted-foreground: #94a3b8;
+    --accent-soft: #161b22;
+    --muted-foreground: #8b949e;
     --status-testing: #60a5fa;
   }
 }
