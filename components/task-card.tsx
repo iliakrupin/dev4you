@@ -12,6 +12,8 @@ const ACTIVE_STATUSES = [
   "deploying",
 ];
 
+const TWO_MINUTES_MS = 2 * 60 * 1000;
+
 export function TaskCard({ task }: { task: Task }) {
   const [currentSha, setCurrentSha] = useState<string | null>(null);
 
@@ -29,6 +31,13 @@ export function TaskCard({ task }: { task: Task }) {
     return () => clearInterval(interval);
   }, []);
 
+  const isMergedAndTimePassed = () => {
+    if (task.status !== 'merged') return false;
+    const updatedAt = new Date(task.updatedAt).getTime();
+    const now = Date.now();
+    return now - updatedAt > TWO_MINUTES_MS;
+  };
+
   const getProgressWidth = () => {
     const progressMap: Record<string, string> = {
       queued: "10%",
@@ -40,7 +49,7 @@ export function TaskCard({ task }: { task: Task }) {
       testing: "80%",
       tested: "90%",
       deploying: "95%",
-      merged: currentSha === task.mergeCommitSha ? "100%" : "95%",
+      merged: isMergedAndTimePassed() ? "100%" : (currentSha === task.mergeCommitSha ? "100%" : "95%"),
       failed: "0%",
       cancelled: "0%",
     };
@@ -62,7 +71,7 @@ export function TaskCard({ task }: { task: Task }) {
     window.location.reload();
   };
 
-  const displayStatus = task.status === 'merged' && currentSha !== task.mergeCommitSha ? 'deploying' : task.status;
+  const displayStatus = task.status === 'merged' && !isMergedAndTimePassed() && currentSha !== task.mergeCommitSha ? 'deploying' : task.status;
 
   return (
     <div className="group block rounded-2xl border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm">
