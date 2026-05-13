@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 export function NewTaskForm() {
   const router = useRouter();
   const [text, setText] = useState("");
+  const [status, setStatus] = useState("todo");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -36,7 +37,7 @@ export function NewTaskForm() {
             "Content-Type": "application/json",
             ...(initData ? { "X-Telegram-Init-Data": initData } : {}),
           },
-          body: JSON.stringify({ text: trimmed }),
+          body: JSON.stringify({ text: trimmed, status }),
         });
 
         if (!res.ok) {
@@ -62,6 +63,17 @@ export function NewTaskForm() {
         rows={6}
         className="w-full resize-none rounded-2xl border border-border bg-surface px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
       />
+      <select
+        value={status}
+        onChange={(e) => setStatus(e.target.value)}
+        disabled={pending}
+        className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-base text-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
+      >
+        <option value="todo">К выполнению</option>
+        <option value="in_progress">В работе</option>
+        <option value="testing">Тестирование</option>
+        <option value="done">Готово</option>
+      </select>
       {error && (
         <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
