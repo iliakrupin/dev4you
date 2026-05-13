@@ -19,6 +19,11 @@ export const env = createEnv({
     QWEN_BASE_URL: urlLike,
     QWEN_MODEL: z.string().min(1),
     QWEN_API_KEY: z.string().default("dummy"),
+    // Опционально — если задан OPENROUTER_API_KEY, агент идёт через OpenRouter
+    // вместо локального Qwen. Для демо/качества; для корп-контура — не задавать.
+    OPENROUTER_API_KEY: z.string().optional(),
+    OPENROUTER_BASE_URL: z.string().optional(),
+    OPENROUTER_MODEL: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: urlLike,
@@ -34,6 +39,9 @@ export const env = createEnv({
     QWEN_BASE_URL: process.env.QWEN_BASE_URL,
     QWEN_MODEL: process.env.QWEN_MODEL,
     QWEN_API_KEY: process.env.QWEN_API_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    OPENROUTER_BASE_URL: process.env.OPENROUTER_BASE_URL,
+    OPENROUTER_MODEL: process.env.OPENROUTER_MODEL,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
   emptyStringAsUndefined: true,
