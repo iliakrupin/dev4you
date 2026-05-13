@@ -114,22 +114,19 @@ export async function getSandboxFilesPreview(): Promise<
       }
     });
 
-  // Загружаем содержимое каждого whitelist-файла (preview)
+  // Превью: только первые 6 строк (обычно imports + начало компонента),
+  // этого достаточно агенту-аналитику чтобы понять какой файл за что
+  // отвечает. Большой preview раздувает промпт и Qwen возвращает пустой
+  // ответ при перегрузке сервера.
   const previews: { path: string; preview: string }[] = [];
   for (const path of allowedPaths) {
     const f = await readFile(path);
     if (!f) continue;
     const lines = f.content.split("\n");
-    let preview: string;
-    if (lines.length <= 25) {
-      preview = f.content;
-    } else {
-      preview = [
-        ...lines.slice(0, 15),
-        `... [${lines.length - 20} строк опущено] ...`,
-        ...lines.slice(-5),
-      ].join("\n");
-    }
+    const preview =
+      lines.length <= 6
+        ? f.content
+        : lines.slice(0, 6).join("\n") + `\n... [${lines.length - 6} строк]`;
     previews.push({ path, preview });
   }
 
