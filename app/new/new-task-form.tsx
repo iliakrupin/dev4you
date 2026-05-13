@@ -54,6 +54,9 @@ export function NewTaskForm() {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
+      <p className="text-sm text-muted-foreground">
+        Опиши, что поменять в UI - агент напишет код, протестирует и выкатит на стенд.
+      </p>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
