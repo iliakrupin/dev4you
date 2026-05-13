@@ -3,14 +3,13 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Опрашивает /api/version в фоне. Если commit SHA изменился — НЕ дёргаем
- * пользователя. Reload происходит только когда вкладка ушла в фон
- * (document.hidden), чтобы при возврате пользователь увидел уже свежую
- * версию без "This page couldn't load" в Telegram WebView.
+ * Опрашивает /api/version. При смене commit SHA делает reload в момент
+ * когда браузер idle (через requestIdleCallback) — это безопаснее чем
+ * сразу window.location.reload, потому что не пересекается с активным
+ * кликом пользователя (race ломал Telegram WebView).
  */
 export function AutoRefresh() {
   const initial = useRef<string | null>(null);
-  const updateAvailable = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,29 +24,24 @@ export function AutoRefresh() {
           return;
         }
         if (sha !== initial.current && !cancelled) {
-          updateAvailable.current = true;
-          // Если вкладка уже в фоне — релоадим прямо сейчас
-          if (document.hidden) window.location.reload();
+          const ric =
+            (window as Window & {
+              requestIdleCallback?: (cb: () => void) => void;
+            }).requestIdleCallback ??
+            ((cb: () => void) => setTimeout(cb, 200));
+          ric(() => window.location.reload());
         }
       } catch {
         /* swallow */
       }
     };
 
-    const onVisibility = () => {
-      if (document.hidden && updateAvailable.current) {
-        window.location.reload();
-      }
-    };
-
     const interval = setInterval(tick, 4000);
-    document.addEventListener("visibilitychange", onVisibility);
     void tick();
 
     return () => {
       cancelled = true;
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
