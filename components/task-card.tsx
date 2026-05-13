@@ -110,16 +110,6 @@ export function TaskCard({ task }: { task: Task }) {
           <p className="mt-1 text-xs text-muted-foreground">
             #{task.id} · {formatRelative(task.createdAt)}
             {task.telegramUsername ? ` · @${task.telegramUsername}` : ""}
-            {task.developmentTime && task.developmentTime > 0 && (
-              <span className="ml-1">
-                · 
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block align-middle mr-0.5">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-                {task.developmentTime} мин
-              </span>
-            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
