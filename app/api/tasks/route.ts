@@ -5,7 +5,7 @@ import { db, tasks } from "@/lib/db";
 import { runAnalysis } from "@/lib/agent/runner";
 import { ANON_USER, validateInitData } from "@/lib/telegram";
 
-const ACTIVE_STATUSES = [
+const ACTIVE_STATUSES: ("queued" | "analyzing" | "analyzed" | "implementing" | "implemented" | "ready_for_review" | "testing" | "tested" | "deploying")[] = [
   "queued",
   "analyzing",
   "analyzed",
@@ -15,7 +15,7 @@ const ACTIVE_STATUSES = [
   "testing",
   "tested",
   "deploying",
-] as const;
+];
 
 const RATE_LIMIT_WINDOW_MS = 60_000; // 60 секунд между задачами от одного юзера
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   const [active] = await db
     .select()
     .from(tasks)
-    .where(inArray(tasks.status, ACTIVE_STATUSES as unknown as string[]))
+    .where(inArray(tasks.status, ACTIVE_STATUSES))
     .orderBy(desc(tasks.createdAt))
     .limit(1);
   if (active) {

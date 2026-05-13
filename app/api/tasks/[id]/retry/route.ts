@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
 import { runAnalysis } from "@/lib/agent/runner";
 
-const ACTIVE_STATUSES = [
+const ACTIVE_STATUSES: ("queued" | "analyzing" | "analyzed" | "implementing" | "implemented" | "ready_for_review" | "testing" | "tested" | "deploying")[] = [
   "queued",
   "analyzing",
   "analyzed",
@@ -13,7 +13,7 @@ const ACTIVE_STATUSES = [
   "testing",
   "tested",
   "deploying",
-] as const;
+];
 
 export const runtime = "edge";
 export const maxDuration = 25;
@@ -47,7 +47,7 @@ export async function POST(
     .from(tasks)
     .where(
       and(
-        inArray(tasks.status, ACTIVE_STATUSES as unknown as string[]),
+        inArray(tasks.status, ACTIVE_STATUSES),
         ne(tasks.id, taskId),
       ),
     )
