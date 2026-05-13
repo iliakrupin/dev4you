@@ -1,12 +1,8 @@
-"use client";
-
 import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
 import { TaskCard } from "@/components/task-card";
 import { ListAutoRefresh } from "@/components/list-auto-refresh";
-import { SearchBar } from "@/components/search-bar";
-import { useState } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +16,6 @@ export default async function HomePage() {
     .from(tasks)
     .orderBy(desc(tasks.createdAt))
     .limit(5);
-
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const filteredList = list.filter((t) =>
-    t.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-4 pb-28 pt-6">
@@ -42,19 +32,15 @@ export default async function HomePage() {
         </p>
       </header>
 
-      <SearchBar value={searchQuery} onChange={setSearchQuery} />
-
       <section className="flex flex-col gap-2">
-        {filteredList.length === 0 ? (
+        {list.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-6 text-center">
             <p className="text-sm text-muted-foreground">
-              {list.length === 0
-                ? "Пока нет задач. Поставьте первую — посмотрим, как работает агент."
-                : "Нет задач, соответствующих поисковому запросу."}
+              Пока нет задач. Поставьте первую — посмотрим, как работает агент.
             </p>
           </div>
         ) : (
-          filteredList.map((t) => <TaskCard key={t.id} task={t} />)
+          list.map((t) => <TaskCard key={t.id} task={t} />)
         )}
       </section>
 
