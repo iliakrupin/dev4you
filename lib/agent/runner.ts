@@ -327,6 +327,19 @@ export async function runImplement(taskId: number): Promise<{ more: boolean }> {
     });
     await logEvent(taskId, "implement", "progress", `Готов файл ${path}`);
 
+    // Если это был последний файл — finalize прямо здесь, не полагаясь на
+    // self-trigger fetch (он иногда не доходит из Edge after()). У нас ещё
+    // есть бюджет 25s, finalize — это 3 быстрых API-вызова.
+    if (pending.length === 0) {
+      try {
+        await finalizeImplement(taskId, task, produced);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await setStatus(taskId, "failed", { errorMessage: `implement: ${msg}` });
+        await logEvent(taskId, "implement", "error", msg);
+      }
+      return { more: false };
+    }
     return { more: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
