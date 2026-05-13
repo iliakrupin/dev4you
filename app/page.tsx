@@ -18,7 +18,7 @@ export default async function HomePage() {
       <ListAutoRefresh />
       <header className="space-y-1">
         <p className="text-xs font-medium uppercase tracking-wider text-accent">
-          ФичуЗадачу
+          #КручуФичу
         </p>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Меняй меня полностью
