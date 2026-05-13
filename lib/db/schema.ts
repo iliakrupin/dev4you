@@ -87,4 +87,6 @@ export type TaskSpec = {
   operation: "edit" | "revert";
   // Если revert — sha коммита для отката (опционально)
   revertSha?: string;
+  // Файлы, которые нужно ПОЛНОСТЬЮ УДАЛИТЬ из репозитория
+  filesToDelete?: string[];
 };

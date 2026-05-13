@@ -10,6 +10,7 @@ import {
   getBaseBranchSha,
   getCommit,
   getLatestMergeCommit,
+  getSandboxFilesPreview,
   mergePullRequest,
   openPullRequest,
   readFile,
@@ -130,6 +131,7 @@ const stringArrayLike = z
 const TaskSpecSchema = z.object({
   goal: z.string(),
   targetFiles: stringArrayLike,
+  filesToDelete: stringArrayLike.optional().default([]),
   changes: stringOrJoined,
   acceptanceCriteria: stringArrayLike,
   operation: z.enum(["edit", "revert"]).default("edit"),
@@ -145,6 +147,31 @@ export async function runAnalysis(taskId: number): Promise<void> {
   await logEvent(taskId, "analysis", "started", "Анализирую задачу…");
 
   try {
+    // Подгружаем дерево whitelist-файлов с превью — даём агенту контекст
+    // чтобы выбирать реальные файлы, не выдумывать имена.
+    const tree = await getSandboxFilesPreview();
+    await logEvent(
+      taskId,
+      "analysis",
+      "progress",
+      `Загружено дерево из ${tree.length} файлов`,
+    );
+
+    const treeBlock = tree
+      .map(
+        (f) =>
+          `--- FILE: ${f.path} ---\n${f.preview}\n--- END: ${f.path} ---`,
+      )
+      .join("\n\n");
+
+    const userMsg = [
+      `Задача от пользователя:`,
+      task.rawText,
+      ``,
+      `Дерево проекта (whitelist):`,
+      treeBlock,
+    ].join("\n");
+
     let raw = "";
     let spec: TaskSpec | null = null;
     let lastErr: unknown = null;
@@ -152,8 +179,8 @@ export async function runAnalysis(taskId: number): Promise<void> {
       try {
         raw = await callLlmJson({
           system: ANALYSIS_SYSTEM,
-          user: task.rawText,
-          maxTokens: 800,
+          user: userMsg,
+          maxTokens: 1200,
         });
         spec = extractJson(raw, TaskSpecSchema);
         break;
@@ -173,6 +200,7 @@ export async function runAnalysis(taskId: number): Promise<void> {
 
     // Доп. фильтр sandbox: даже если LLM указала запрещённые файлы — выкинем
     spec.targetFiles = spec.targetFiles.filter(isAllowed);
+    spec.filesToDelete = (spec.filesToDelete ?? []).filter(isAllowed);
 
     await setStatus(taskId, "analyzed", { spec });
     await logEvent(taskId, "analysis", "finished", "План готов", { spec });
@@ -356,22 +384,30 @@ async function finalizeImplement(
   task: Task,
   produced: { path: string; content: string; sha?: string }[],
 ): Promise<void> {
-  if (produced.length === 0) {
-    throw new Error("Не получилось сгенерировать ни одного файла");
-  }
   if (!task.spec) throw new Error("нет spec");
+
+  const filesToDelete = task.spec.filesToDelete ?? [];
+  if (produced.length === 0 && filesToDelete.length === 0) {
+    throw new Error("Не получилось сгенерировать или удалить ни одного файла");
+  }
 
   const baseSha = await getBaseBranchSha();
   const branch = `task/${taskId}`;
   await createBranch(branch, baseSha);
 
-  // Один GraphQL вызов вместо writeFile × N — экономия (N-1) GitHub API calls
+  // Один GraphQL вызов: и additions, и deletions
   await commitMultipleFiles({
     branch,
     expectedHeadOid: baseSha,
     message: `task #${taskId}: ${task.spec.goal}`,
     files: produced.map((f) => ({ path: f.path, content: f.content })),
+    deletions: filesToDelete,
   });
+
+  const fileSummary = [
+    ...produced.map((f) => `~ \`${f.path}\``),
+    ...filesToDelete.map((p) => `× \`${p}\` (удалён)`),
+  ].join(", ");
 
   const pr = await openPullRequest({
     branch,
@@ -381,7 +417,7 @@ async function finalizeImplement(
       ``,
       `**План:** ${task.spec.changes}`,
       ``,
-      `**Файлы:** ${produced.map((f) => `\`${f.path}\``).join(", ")}`,
+      `**Файлы:** ${fileSummary}`,
       ``,
       `_Создано агентом ФичуЗадачу._`,
     ].join("\n"),
@@ -391,7 +427,7 @@ async function finalizeImplement(
     branchName: branch,
     prNumber: pr.number,
     prUrl: pr.url,
-    touchedFiles: produced.map((f) => f.path),
+    touchedFiles: [...produced.map((f) => f.path), ...filesToDelete],
   });
   await logEvent(taskId, "implement", "finished", `PR #${pr.number} открыт`, {
     pr,

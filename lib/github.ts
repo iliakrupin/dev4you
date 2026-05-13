@@ -43,8 +43,8 @@ export async function getBaseBranchSha(): Promise<string> {
 }
 
 /**
- * Один GraphQL вызов записывает все файлы коммитом — экономит N-1 REST вызовов
- * по сравнению с writeFile в цикле. GitLab имеет похожий API (commits.create
+ * Один GraphQL вызов записывает все файлы и/или удаляет указанные одним
+ * коммитом. Экономит REST-вызовы. GitLab имеет похожий API (commits.create
  * с массивом actions), так что переход не закроет дверь.
  */
 export async function commitMultipleFiles(opts: {
@@ -52,8 +52,10 @@ export async function commitMultipleFiles(opts: {
   expectedHeadOid: string;
   message: string;
   files: { path: string; content: string }[];
+  deletions?: string[];
 }): Promise<{ oid: string }> {
   for (const f of opts.files) assertAllowed(f.path);
+  for (const p of opts.deletions ?? []) assertAllowed(p);
 
   const result = await octokit.graphql<{
     createCommitOnBranch: { commit: { oid: string } };
@@ -76,11 +78,62 @@ export async function commitMultipleFiles(opts: {
             path: f.path,
             contents: b64encode(f.content),
           })),
+          deletions: (opts.deletions ?? []).map((path) => ({ path })),
         },
       },
     },
   );
   return { oid: result.createCommitOnBranch.commit.oid };
+}
+
+/**
+ * Возвращает список путей в whitelist + first/last строк каждого файла.
+ * Используется на анализе как "дерево проекта" в промпте — агент видит
+ * структуру и выбирает релевантные файлы из реальных, а не выдуманных.
+ */
+export async function getSandboxFilesPreview(): Promise<
+  { path: string; preview: string }[]
+> {
+  // Octokit git/getTree recursive — один вызов на весь tree
+  const tree = await octokit.git.getTree({
+    owner,
+    repo,
+    tree_sha: baseBranch,
+    recursive: "true",
+  });
+
+  const allowedPaths = (tree.data.tree ?? [])
+    .filter((e) => e.type === "blob" && e.path)
+    .map((e) => e.path!)
+    .filter((p) => {
+      try {
+        assertAllowed(p);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+
+  // Загружаем содержимое каждого whitelist-файла (preview)
+  const previews: { path: string; preview: string }[] = [];
+  for (const path of allowedPaths) {
+    const f = await readFile(path);
+    if (!f) continue;
+    const lines = f.content.split("\n");
+    let preview: string;
+    if (lines.length <= 25) {
+      preview = f.content;
+    } else {
+      preview = [
+        ...lines.slice(0, 15),
+        `... [${lines.length - 20} строк опущено] ...`,
+        ...lines.slice(-5),
+      ].join("\n");
+    }
+    previews.push({ path, preview });
+  }
+
+  return previews;
 }
 
 export async function createBranch(
