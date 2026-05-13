@@ -19,7 +19,7 @@ export function TaskCard({ task }: { task: Task }) {
   const [deleted, setDeleted] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(async () => {
+    const fetchVersion = async () => {
       try {
         const response = await fetch('/api/version');
         const data = await response.json();
@@ -27,8 +27,11 @@ export function TaskCard({ task }: { task: Task }) {
       } catch (error) {
         console.error('Failed to fetch version:', error);
       }
-    }, 3000);
-
+    };
+    // Сразу на mount — иначе первые 3 сек currentSha=null, и логика
+    // displayStatus считает merged-задачу "выкатывается" → бар мигает.
+    void fetchVersion();
+    const interval = setInterval(fetchVersion, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -50,7 +53,7 @@ export function TaskCard({ task }: { task: Task }) {
       testing: "80%",
       tested: "90%",
       deploying: "95%",
-      merged: isMergedAndTimePassed() ? "100%" : (currentSha === task.mergeCommitSha ? "100%" : "95%"),
+      merged: isMergedAndTimePassed() || currentSha === null || currentSha === task.mergeCommitSha ? "100%" : "95%",
       failed: "0%",
       cancelled: "0%",
     };
@@ -85,7 +88,15 @@ export function TaskCard({ task }: { task: Task }) {
     }
   };
 
-  const displayStatus = task.status === 'merged' && !isMergedAndTimePassed() && currentSha !== task.mergeCommitSha ? 'deploying' : task.status;
+  // Не показываем "deploying" пока currentSha не загрузился — иначе при F5
+  // карточка моргает "Выкатываю" → "Внедрено" в первые 3 секунды.
+  const displayStatus =
+    task.status === 'merged' &&
+    !isMergedAndTimePassed() &&
+    currentSha !== null &&
+    currentSha !== task.mergeCommitSha
+      ? 'deploying'
+      : task.status;
 
   if (deleted) return null;
 
