@@ -53,11 +53,12 @@ export async function POST(req: NextRequest) {
   // GitHub передаёт в deployment.ref commit SHA, а не имя ветки
   const sha = body.deployment?.sha ?? body.deployment?.ref ?? "";
 
-  if (state !== "success") {
-    return NextResponse.json({ ok: true, ignored: `state=${state}` });
-  }
+  // Игнорим production и in_progress — нас интересуют только preview success/failure
   if (env.toLowerCase() === "production") {
     return NextResponse.json({ ok: true, ignored: "env=production" });
+  }
+  if (state !== "success" && state !== "failure" && state !== "error") {
+    return NextResponse.json({ ok: true, ignored: `state=${state}` });
   }
   if (!sha) {
     return NextResponse.json({ ok: true, ignored: "no sha" });
@@ -79,6 +80,27 @@ export async function POST(req: NextRequest) {
   if (!task) return NextResponse.json({ ok: true, ignored: "no task" });
   if (task.status === "merged") return NextResponse.json({ ok: true, alreadyMerged: true });
   if (!task.prNumber) return NextResponse.json({ ok: true, ignored: "no pr" });
+
+  // Vercel preview build упал — отмечаем задачу failed
+  if (state === "failure" || state === "error") {
+    const logUrl = body.deployment_status?.log_url ?? body.deployment_status?.target_url ?? "";
+    await db
+      .update(tasks)
+      .set({
+        status: "failed",
+        errorMessage: `test: Vercel preview build упал. Лог: ${logUrl}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, task.id));
+    await db.insert(taskEvents).values({
+      taskId: task.id,
+      stage: "test",
+      kind: "error",
+      message: `Vercel build failed (${state})`,
+      metadata: { logUrl },
+    });
+    return NextResponse.json({ ok: true, marked: "failed" });
+  }
 
   // Обновляем статус и мержим
   try {
