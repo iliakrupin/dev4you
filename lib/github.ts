@@ -266,6 +266,32 @@ export async function getAllowedFilesAtRef(
   return out;
 }
 
+/**
+ * Удаляет ветку (используется после успешного merge — освобождает слот
+ * Vercel preview branches, которых на Pro 100 штук).
+ */
+export async function deleteBranch(branch: string): Promise<void> {
+  try {
+    await octokit.git.deleteRef({
+      owner,
+      repo,
+      ref: `heads/${branch}`,
+    });
+  } catch (e: unknown) {
+    // 422 = ветки уже нет, не критично
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "status" in e &&
+      ((e as { status: number }).status === 422 ||
+        (e as { status: number }).status === 404)
+    ) {
+      return;
+    }
+    throw e;
+  }
+}
+
 export async function getCommit(sha: string): Promise<{
   parents: { sha: string }[];
   files: { filename: string }[];

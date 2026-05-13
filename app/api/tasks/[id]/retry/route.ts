@@ -1,7 +1,19 @@
 import { after, NextResponse, type NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
 import { runAnalysis } from "@/lib/agent/runner";
+
+const ACTIVE_STATUSES = [
+  "queued",
+  "analyzing",
+  "analyzed",
+  "implementing",
+  "implemented",
+  "ready_for_review",
+  "testing",
+  "tested",
+  "deploying",
+] as const;
 
 export const runtime = "edge";
 export const maxDuration = 25;
@@ -27,6 +39,28 @@ export async function POST(
     .limit(1);
   if (!task) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
+  // Mutex: не запускаем retry если есть другая активная задача
+  const [active] = await db
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        inArray(tasks.status, ACTIVE_STATUSES as unknown as string[]),
+        ne(tasks.id, taskId),
+      ),
+    )
+    .orderBy(desc(tasks.createdAt))
+    .limit(1);
+  if (active) {
+    return NextResponse.json(
+      {
+        error: `Сейчас в работе задача #${active.id}. Дождитесь её завершения.`,
+        activeTaskId: active.id,
+      },
+      { status: 429 },
+    );
   }
 
   await db

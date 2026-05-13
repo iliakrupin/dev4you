@@ -7,6 +7,7 @@ import { ALLOWED_HINT, isAllowed, isProtectedFromDeletion } from "./sandbox";
 import {
   commitMultipleFiles,
   createBranch,
+  deleteBranch,
   getBaseBranchSha,
   getCommit,
   getLatestMergeCommit,
@@ -520,6 +521,18 @@ async function finalizeImplement(
       "finished",
       `Внедрено в main: ${merged.sha.slice(0, 7)}`,
     );
+    // Cleanup task-ветки — освобождает Vercel preview branch slot.
+    // Не критично если упало (просто логируем).
+    try {
+      await deleteBranch(branch);
+    } catch (e) {
+      await logEvent(
+        taskId,
+        "deploy",
+        "progress",
+        `Не смог удалить ветку ${branch}: ${e instanceof Error ? e.message : e}`,
+      );
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await setStatus(taskId, "failed", { errorMessage: `deploy: ${msg}` });
