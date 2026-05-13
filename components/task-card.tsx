@@ -16,6 +16,9 @@ const TWO_MINUTES_MS = 2 * 60 * 1000;
 
 export function TaskCard({ task }: { task: Task }) {
   const [currentSha, setCurrentSha] = useState<string | null>(null);
+  const [deleted, setDeleted] = useState(false);
+
+  if (deleted) return null;
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -67,8 +70,13 @@ export function TaskCard({ task }: { task: Task }) {
 
   const handleDelete = async () => {
     if (!confirm("Удалить задачу?")) return;
-    await fetch(`/api/tasks/${task.id}/delete`, { method: "DELETE" });
-    window.location.reload();
+    setDeleted(true);
+    try {
+      await fetch(`/api/tasks/${task.id}/delete`, { method: "DELETE" });
+    } catch (error) {
+      alert('Не удалось удалить: ' + error.message);
+      setDeleted(false);
+    }
   };
 
   const displayStatus = task.status === 'merged' && !isMergedAndTimePassed() && currentSha !== task.mergeCommitSha ? 'deploying' : task.status;
