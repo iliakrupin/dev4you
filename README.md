@@ -53,6 +53,10 @@ pnpm dev
 4. Настройте Vercel webhook на `https://<ваш-домен>/api/webhooks/vercel` с событиями `deployment.created`, `deployment.succeeded`, `deployment.error`.
 5. У `@BotFather` в Telegram: `/newapp` → URL = `https://<ваш-домен>`.
 
+## Roadmap
+
+См. [ROADMAP.md](ROADMAP.md) — список доработок поверх MVP с приоритетами.
+
 ## Лицензия
 
 MIT.
