@@ -115,10 +115,53 @@
 - Public GitHub репо: код виден сообществу, токены не попадают (env-валидация при билде ловит опечатки).
 - В MVP **нет аутентификации в смысле user accounts** — `telegram_id` достаточно для идентификации в Mini App. Для публичного веба `telegramUserId=0`, `username='anon'`.
 
-## 9. Roadmap
+## 9. Reset to baseline (публичный endpoint)
+
+Зрители демо изменяют приложение до неузнаваемости — это часть концепции. Чтобы любой мог одной кнопкой вернуть всё к исходному виду, есть **публичный** endpoint сброса.
+
+### Snapshot
+Git tag `demo-baseline` фиксирует «эталонное» состояние всех whitelist-файлов. Создать/обновить:
+
+```bash
+git tag -f demo-baseline main
+git push origin demo-baseline -f
+```
+
+### Reset
+`POST /api/admin/reset` (или просто `GET` в браузере) через Octokit GraphQL `createCommitOnBranch` одним коммитом перезаписывает все whitelist-файлы их версиями из `demo-baseline`. После этого Vercel сам пересобирает production за ~60 секунд.
+
+```bash
+# Через curl
+curl -X POST https://dev4you-pi.vercel.app/api/admin/reset
+
+# Или прямо из адресной строки браузера/телефона
+https://dev4you-pi.vercel.app/api/admin/reset
+```
+
+По умолчанию endpoint также удаляет все задачи из БД. Если хотите оставить историю задач: `?clearTasks=false`.
+
+### Намеренно без аутентификации
+Endpoint **публичный** — это часть демо-концепции «играйте сколько хотите, всегда есть откат». Любой зритель в момент демонстрации может тыкнуть и вернуть всё к baseline. Это:
+- Снимает с автора роль «единственного оператора reset'а»
+- Делает демо устойчивым: если кто-то сильно сломал — следующий зритель может починить
+- Превращает reset в часть UI взаимодействия, а не в админку
+
+Если когда-то решите ограничить — добавьте простую проверку секрета в начале handler'а.
+
+### Что делает endpoint пошагово
+1. Через Octokit `git/getTree(recursive)` читает дерево по ref `demo-baseline`.
+2. Фильтрует пути через `assertAllowed` (sandbox).
+3. Для каждого файла читает blob.
+4. Через GraphQL `createCommitOnBranch` создаёт ОДИН коммит на main с file additions = все файлы baseline.
+5. (По умолчанию) `DELETE FROM tasks` — каскадно удаляются `task_events`.
+6. Возвращает `{ ok, restoredFiles, newSha, tasksDeleted }`.
+
+Реализация: [`app/api/admin/reset/route.ts`](app/api/admin/reset/route.ts), helper в [`lib/github.ts`](lib/github.ts) (`getAllowedFilesAtRef`).
+
+## 10. Roadmap
 
 См. [ROADMAP.md](ROADMAP.md) — упорядоченный список доработок.
 
-## 10. История
+## 11. История
 
 Проект построен за один день (2026-05-12) в режиме pair-coding с Claude Code (Opus 4.7). Каждая задача в репо после первого зелёного pipeline ставилась через сам сервис, агент менял код собственного дашборда. Это и есть «саморазвивающаяся демо-система» из видения.

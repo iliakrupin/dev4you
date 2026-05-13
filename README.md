@@ -58,6 +58,16 @@ pnpm dev
 - [SPEC.md](SPEC.md) — полная спецификация: видение, аудитория, архитектура, ограничения.
 - [ROADMAP.md](ROADMAP.md) — план доработок поверх MVP с приоритетами.
 
+## Сбросить демо к исходному виду
+
+Любой может одной командой вернуть приложение к baseline (если зрители его сильно изменили):
+
+```bash
+curl -X POST https://dev4you-pi.vercel.app/api/admin/reset
+```
+
+Или просто открыть https://dev4you-pi.vercel.app/api/admin/reset в браузере. Endpoint публичный — намеренно. Через ~60 секунд после Vercel-пересборки приложение полностью в исходном состоянии. Подробности в [SPEC.md §9](SPEC.md#9-reset-to-baseline-публичный-endpoint).
+
 ## Лицензия
 
 MIT.

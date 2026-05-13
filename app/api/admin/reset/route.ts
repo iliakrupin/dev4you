@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { db, tasks } from "@/lib/db";
 import {
   commitMultipleFiles,
@@ -10,36 +10,22 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * Сброс приложения к состоянию, зафиксированному в git tag `demo-baseline`.
- * Нужен после демонстрации, когда зрители сильно изменили UI.
- *
- * Защита: header X-Admin-Token == env ADMIN_TOKEN.
+ * Сброс приложения к git tag `demo-baseline`. Намеренно ПУБЛИЧНЫЙ —
+ * любой зритель демо может тыкнуть и вернуть всё в исходное состояние.
+ * Это часть концепции «играйте сколько хотите, всегда есть откат».
  *
  * Что делает:
  * 1. Читает все whitelist-файлы из tag demo-baseline
- * 2. Одним коммитом перезаписывает их в main через GraphQL
- * 3. (по флагу clearTasks=true) удаляет все задачи из БД
+ * 2. Одним GraphQL-коммитом перезаписывает их в main
+ * 3. Удаляет все задачи из БД (?clearTasks=false если не нужно)
  *
- * После reset Vercel пересоберёт production автоматически.
+ * После reset Vercel пересобирает production автоматически.
  */
-export async function POST(req: NextRequest) {
-  const expected = process.env.ADMIN_TOKEN;
-  if (!expected) {
-    return NextResponse.json(
-      { error: "ADMIN_TOKEN не настроен в env" },
-      { status: 500 },
-    );
-  }
-  const provided = req.headers.get("x-admin-token");
-  if (provided !== expected) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
-
+export async function POST(req: Request) {
   const url = new URL(req.url);
-  const clearTasks = url.searchParams.get("clearTasks") === "true";
+  const clearTasks = url.searchParams.get("clearTasks") !== "false";
 
   try {
-    // 1. Скачиваем все whitelist-файлы из tag demo-baseline
     const files = await getAllowedFilesAtRef("demo-baseline");
     if (files.length === 0) {
       return NextResponse.json(
@@ -48,7 +34,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Один коммит на main, перезаписывающий все эти файлы
     const baseSha = await getBaseBranchSha();
     const result = await commitMultipleFiles({
       branch: "main",
@@ -57,7 +42,6 @@ export async function POST(req: NextRequest) {
       files,
     });
 
-    // 3. Опционально — чистим БД
     let tasksDeleted = 0;
     if (clearTasks) {
       const deleted = await db.delete(tasks).returning({ id: tasks.id });
@@ -75,3 +59,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+// GET тоже разрешён — удобно дёрнуть прямо из адресной строки браузера
+export const GET = POST;
