@@ -25,7 +25,7 @@ export default async function HomePage() {
           #КручуФичу
         </p>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          AI-конвеер, который меняет себя
+          AI-конвеер меняет себя
         </h1>
         <p className="text-sm text-muted-foreground">
           Опиши, что поменять в UI — агент напишет код, протестирует и выкатит на стенд.
