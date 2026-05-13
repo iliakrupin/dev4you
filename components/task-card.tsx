@@ -14,7 +14,7 @@ const ACTIVE_STATUSES = [
 
 const TWO_MINUTES_MS = 2 * 60 * 1000;
 
-export function TaskCard({ task }: { task: Task }) {
+export function TaskCard({ task, onDelete }: { task: Task; onDelete?: () => void }) {
   const [currentSha, setCurrentSha] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,7 +68,20 @@ export function TaskCard({ task }: { task: Task }) {
   const displayStatus = task.status === 'merged' && !isMergedAndTimePassed() && currentSha !== task.mergeCommitSha ? 'deploying' : task.status;
 
   return (
-    <div className="group block rounded-2xl border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm">
+    <div className="group relative block rounded-2xl border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm">
+      {onDelete && (
+        <button
+          onClick={onDelete}
+          className="absolute top-2 right-2 rounded-lg p-1.5 text-muted-foreground hover:bg-danger hover:text-danger-foreground transition-colors"
+          aria-label="Удалить задачу"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 6h18" />
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+          </svg>
+        </button>
+      )}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-medium text-foreground">
