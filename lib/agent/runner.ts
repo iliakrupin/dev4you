@@ -106,16 +106,17 @@ async function callLlmJson(opts: {
 
 // ---- analysis ----
 
-// LLM иногда возвращает поля как массив, иногда как строку — нормализуем.
-const stringOrJoined = z
-  .union([z.string(), z.array(z.union([z.string(), z.unknown()]))])
-  .transform((v) =>
-    Array.isArray(v)
-      ? v
-          .map((x) => (typeof x === "string" ? x : JSON.stringify(x)))
-          .join("\n")
-      : v,
-  );
+// LLM возвращает поля как угодно: строка / массив / объект. Нормализуем в строку.
+const stringOrJoined = z.unknown().transform((v) => {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) {
+    return v
+      .map((x) => (typeof x === "string" ? x : JSON.stringify(x)))
+      .join("\n");
+  }
+  if (v === null || v === undefined) return "";
+  return JSON.stringify(v, null, 2);
+});
 
 const stringArrayLike = z
   .union([z.array(z.string()), z.string()])
