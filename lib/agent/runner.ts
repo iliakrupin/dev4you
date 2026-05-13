@@ -148,7 +148,7 @@ export async function runAnalysis(taskId: number): Promise<void> {
     let raw = "";
     let spec: TaskSpec | null = null;
     let lastErr: unknown = null;
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         raw = await callLlmJson({
           system: ANALYSIS_SYSTEM,
@@ -163,9 +163,10 @@ export async function runAnalysis(taskId: number): Promise<void> {
           taskId,
           "analysis",
           "progress",
-          `Попытка ${attempt} провалилась: ${e instanceof Error ? e.message : e}`,
+          `Попытка ${attempt}/3 провалилась: ${e instanceof Error ? e.message : e}`,
           { rawResponse: raw.slice(0, 500) },
         );
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 1500));
       }
     }
     if (!spec) throw lastErr ?? new Error("analysis failed");
@@ -284,7 +285,7 @@ export async function runImplement(taskId: number): Promise<{ more: boolean }> {
     let raw = "";
     let parsed: z.infer<typeof FilesSchema> | null = null;
     let lastErr: unknown = null;
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         raw = await callLlmJson({
           system: IMPLEMENT_SYSTEM,
@@ -299,9 +300,10 @@ export async function runImplement(taskId: number): Promise<{ more: boolean }> {
           taskId,
           "implement",
           "progress",
-          `Попытка ${attempt} для ${path} провалилась: ${e instanceof Error ? e.message : e}`,
+          `Попытка ${attempt}/3 для ${path} провалилась: ${e instanceof Error ? e.message : e}`,
           { rawResponse: raw.slice(0, 300) },
         );
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 1500));
       }
     }
     if (!parsed) throw lastErr ?? new Error("implement failed");
