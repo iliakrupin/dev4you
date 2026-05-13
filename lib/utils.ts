@@ -16,14 +16,14 @@ export function cn(...inputs: ClassValue[]): string {
 
 const statusLabels: Record<string, string> = {
   queued: "В очереди",
-  analyzing: "Анализирую",
+  analyzing: "Анализ",
   analyzed: "Готов план",
   implementing: "Пишу код",
   implemented: "Код готов",
+  ready_for_review: "Собираю стенд",
   testing: "Тестирую",
   tested: "Тесты пройдены",
   deploying: "Выкатываю",
-  ready_for_review: "Готово к проверке",
   merged: "Внедрено",
   failed: "Ошибка",
   cancelled: "Отменено",
