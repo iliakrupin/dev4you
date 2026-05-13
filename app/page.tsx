@@ -7,7 +7,7 @@ import { ListAutoRefresh } from "@/components/list-auto-refresh";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "#кручуфичу - меняй меня полностью",
+  title: "#кручуфичу - AI-конвеер",
 };
 
 export default async function HomePage() {
@@ -25,7 +25,7 @@ export default async function HomePage() {
           #КручуФичу
         </p>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Меняй меня полностью
+          AI-конвеер
         </h1>
         <p className="text-sm text-muted-foreground">
           Опишите фичу — AI-агент напишет код, протестирует и выкатит на стенд.
