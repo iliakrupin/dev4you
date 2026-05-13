@@ -30,6 +30,9 @@ export default async function HomePage() {
         <p className="text-sm text-muted-foreground">
           Опишите фичу — AI-агент напишет код, протестирует и выкатит на стенд.
         </p>
+        <button className="text-sm text-muted-foreground hover:text-foreground">
+          Очистить
+        </button>
       </header>
 
       <section className="flex flex-col gap-2">
