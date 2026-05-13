@@ -80,11 +80,32 @@ async function callLlmJson(opts: {
   system: string;
   user: string;
   maxTokens: number;
+  stream?: boolean;
 }): Promise<string> {
-  // Stream вместо обычного call — получаем токены по мере генерации,
-  // не упираемся в 22s timeout SDK на длинных ответах. Если Vercel
-  // прервёт по 25s — у нас будет хотя бы часть ответа.
-  const stream = await llm().chat.completions.create({
+  if (opts.stream) {
+    const stream = await llm().chat.completions.create({
+      model: qwenModel(),
+      temperature: 0.2,
+      max_tokens: opts.maxTokens,
+      messages: [
+        { role: "system", content: opts.system },
+        { role: "user", content: opts.user },
+      ],
+      response_format: { type: "json_object" },
+      stream: true,
+    });
+    let content = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) content += delta;
+    }
+    return content;
+  }
+
+  // Non-streaming: для больших output Qwen иногда обрывает stream chunks
+  // на середине JSON-строки → "Unterminated string". Без stream сервер
+  // отдаёт ответ целиком, либо мы получаем понятный timeout.
+  const res = await llm().chat.completions.create({
     model: qwenModel(),
     temperature: 0.2,
     max_tokens: opts.maxTokens,
@@ -93,15 +114,8 @@ async function callLlmJson(opts: {
       { role: "user", content: opts.user },
     ],
     response_format: { type: "json_object" },
-    stream: true,
   });
-
-  let content = "";
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content;
-    if (delta) content += delta;
-  }
-  return content;
+  return res.choices[0]?.message?.content ?? "";
 }
 
 // ---- analysis ----
@@ -182,6 +196,7 @@ export async function runAnalysis(taskId: number): Promise<void> {
           system: ANALYSIS_SYSTEM,
           user: userMsg,
           maxTokens: 1200,
+          stream: true, // analysis output короткий, stream безопасен
         });
         spec = extractJson(raw, TaskSpecSchema);
         break;
@@ -323,7 +338,10 @@ export async function runImplement(taskId: number): Promise<{ more: boolean }> {
         raw = await callLlmJson({
           system: IMPLEMENT_SYSTEM,
           user: userPrompt,
-          maxTokens: 2500,
+          maxTokens: 4000,
+          // Non-streaming для implement: на больших файлах stream обрывает
+          // JSON-строку посередине ("Unterminated string at position X").
+          stream: false,
         });
         parsed = extractJson(raw, FilesSchema);
         break;
