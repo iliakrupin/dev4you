@@ -51,12 +51,44 @@ export async function POST(req: NextRequest) {
   const state = body.deployment_status?.state;
   const env = body.deployment?.environment ?? body.deployment_status?.environment ?? "";
 
-  // Игнорим production и in_progress — нас интересуют только preview success/failure
-  if (env.toLowerCase() === "production") {
-    return NextResponse.json({ ok: true, ignored: "env=production" });
-  }
   if (state !== "success" && state !== "failure" && state !== "error") {
     return NextResponse.json({ ok: true, ignored: `state=${state}` });
+  }
+
+  // Production failure: ищем task с этим merge_commit_sha и помечаем failed.
+  // Это убирает ложное "Внедрено" когда наш immediate-merge workaround
+  // сливает PR, а production build потом падает.
+  if (env.toLowerCase() === "production") {
+    if (state !== "failure" && state !== "error") {
+      return NextResponse.json({ ok: true, ignored: "production success" });
+    }
+    const sha = body.deployment?.sha ?? body.deployment?.ref ?? "";
+    if (!sha) return NextResponse.json({ ok: true, ignored: "no sha" });
+    const [task] = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.mergeCommitSha, sha))
+      .limit(1);
+    if (!task) {
+      return NextResponse.json({ ok: true, ignored: "no task with this sha" });
+    }
+    const logUrl =
+      body.deployment_status?.log_url ?? body.deployment_status?.target_url ?? "";
+    await db
+      .update(tasks)
+      .set({
+        status: "failed",
+        errorMessage: `deploy: production build упал. Лог: ${logUrl}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, task.id));
+    await db.insert(taskEvents).values({
+      taskId: task.id,
+      stage: "deploy",
+      kind: "error",
+      message: `Production build failed: ${logUrl}`,
+    });
+    return NextResponse.json({ ok: true, marked: "failed (prod build)" });
   }
   // Идентифицируем task по preview URL (содержит "task-N") — без GitHub API
   // call. Раньше делали findPullRequestForSha — экономим вызов.
