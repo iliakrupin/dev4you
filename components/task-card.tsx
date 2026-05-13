@@ -57,12 +57,17 @@ export function TaskCard({ task, onDelete }: { task: Task; onDelete?: () => void
   };
 
   const handleRetry = async () => {
-    await fetch('/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: task.rawText }),
-    });
-    window.location.reload();
+    // Перезапускаем эту же задачу — НЕ создаём новую (раньше делали POST /api/tasks
+    // и это плодило дубликаты). Endpoint сбрасывает state и запускает pipeline.
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/retry`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert("Не удалось перезапустить: " + msg);
+    }
   };
 
   const displayStatus = task.status === 'merged' && !isMergedAndTimePassed() && currentSha !== task.mergeCommitSha ? 'deploying' : task.status;
