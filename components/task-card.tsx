@@ -56,6 +56,12 @@ export function TaskCard({ task }: { task: Task }) {
     window.location.reload();
   };
 
+  const handleDelete = async () => {
+    if (!confirm("Удалить задачу?")) return;
+    await fetch(`/api/tasks/${task.id}/delete`, { method: "DELETE" });
+    window.location.reload();
+  };
+
   const displayStatus = task.status === 'merged' && currentSha !== task.mergeCommitSha ? 'deploying' : task.status;
 
   return (
@@ -70,7 +76,15 @@ export function TaskCard({ task }: { task: Task }) {
             {task.telegramUsername ? ` · @${task.telegramUsername}` : ""}
           </p>
         </div>
-        <StatusBadge status={displayStatus} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDelete}
+            className="rounded-lg bg-danger/10 text-danger hover:bg-danger/20 px-2 py-1 text-xs transition"
+          >
+            ×
+          </button>
+          <StatusBadge status={displayStatus} />
+        </div>
       </div>
       
       {/* Timeline прогресса по этапам */}
