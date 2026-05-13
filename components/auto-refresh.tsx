@@ -1,21 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 /**
- * Опрашивает /api/version. Когда commit SHA сменился относительно того,
- * с которым страница загрузилась — показываем banner с кнопкой "Обновить".
- *
- * НЕ делаем автоматический window.location.reload — в Telegram WebView
- * это приводило к ошибке "This page couldn't load", если reload совпадал
- * с user-initiated действием (например клик удалить).
+ * Опрашивает /api/version в фоне. Если commit SHA изменился — НЕ дёргаем
+ * пользователя. Reload происходит только когда вкладка ушла в фон
+ * (document.hidden), чтобы при возврате пользователь увидел уже свежую
+ * версию без "This page couldn't load" в Telegram WebView.
  */
 export function AutoRefresh() {
   const initial = useRef<string | null>(null);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const updateAvailable = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+
     const tick = async () => {
       try {
         const res = await fetch("/api/version", { cache: "no-store" });
@@ -26,28 +25,31 @@ export function AutoRefresh() {
           return;
         }
         if (sha !== initial.current && !cancelled) {
-          setUpdateAvailable(true);
+          updateAvailable.current = true;
+          // Если вкладка уже в фоне — релоадим прямо сейчас
+          if (document.hidden) window.location.reload();
         }
       } catch {
         /* swallow */
       }
     };
+
+    const onVisibility = () => {
+      if (document.hidden && updateAvailable.current) {
+        window.location.reload();
+      }
+    };
+
     const interval = setInterval(tick, 4000);
+    document.addEventListener("visibilitychange", onVisibility);
     void tick();
+
     return () => {
       cancelled = true;
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
-  if (!updateAvailable) return null;
-
-  return (
-    <button
-      onClick={() => window.location.reload()}
-      className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-lg active:scale-95"
-    >
-      Доступно обновление — нажмите
-    </button>
-  );
+  return null;
 }
