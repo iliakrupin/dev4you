@@ -90,7 +90,7 @@ export function TaskCard({ task }: { task: Task }) {
   if (deleted) return null;
 
   return (
-    <div className="group relative block rounded-2xl border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm">
+    <div className="group relative block rounded-none border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm">
       <div className="flex items-center justify-between gap-3 mt-6">
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-medium text-foreground">
@@ -105,7 +105,7 @@ export function TaskCard({ task }: { task: Task }) {
           <StatusBadge status={displayStatus} />
           <button
             onClick={handleDelete}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-danger/10 hover:text-danger transition-colors"
+            className="rounded-none p-1.5 text-muted-foreground hover:bg-danger/10 hover:text-danger transition-colors"
             aria-label="Удалить задачу"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -126,9 +126,9 @@ export function TaskCard({ task }: { task: Task }) {
           <span>Завершена</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex-1 rounded-full bg-border h-2">
+          <div className="flex-1 rounded-none bg-border h-2">
             <div 
-              className={`h-2 rounded-full bg-accent transition-all duration-300 ${ACTIVE_STATUSES.includes(task.status) ? "animate-pulse" : ""}`} 
+              className={`h-2 rounded-none bg-accent transition-all duration-300 ${ACTIVE_STATUSES.includes(task.status) ? "animate-pulse" : ""}`} 
               style={{ width: getProgressWidth() }}
             />
           </div>
@@ -160,7 +160,7 @@ export function TaskCard({ task }: { task: Task }) {
       {task.status === 'failed' && (
         <button 
           onClick={handleRetry}
-          className="rounded-lg bg-accent text-accent-foreground px-3 py-1.5 text-xs mt-3"
+          className="rounded-none bg-accent text-accent-foreground px-3 py-1.5 text-xs mt-3"
         >
           Повторить
         </button>
