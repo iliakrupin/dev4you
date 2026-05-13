@@ -16,9 +16,6 @@ const TWO_MINUTES_MS = 2 * 60 * 1000;
 
 export function TaskCard({ task }: { task: Task }) {
   const [currentSha, setCurrentSha] = useState<string | null>(null);
-  const [deleted, setDeleted] = useState(false);
-
-  if (deleted) return null;
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -68,25 +65,6 @@ export function TaskCard({ task }: { task: Task }) {
     window.location.reload();
   };
 
-  const handleDelete = async () => {
-    if (!confirm("Удалить задачу?")) return;
-    // ВАЖНО: сначала fetch, потом setDeleted. Если сначала setDeleted=true,
-    // компонент unmount-ится, await fetch обрывается и в Telegram WebView
-    // вылетает "This page couldn't load".
-    try {
-      const res = await fetch(`/api/tasks/${task.id}/delete`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      setDeleted(true);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      alert("Не удалось удалить: " + msg);
-    }
-  };
-
   const displayStatus = task.status === 'merged' && !isMergedAndTimePassed() && currentSha !== task.mergeCommitSha ? 'deploying' : task.status;
 
   return (
@@ -101,15 +79,7 @@ export function TaskCard({ task }: { task: Task }) {
             {task.telegramUsername ? ` · @${task.telegramUsername}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleDelete}
-            className="rounded-lg bg-danger/10 text-danger hover:bg-danger/20 px-2 py-1 text-xs transition"
-          >
-            ×
-          </button>
-          <StatusBadge status={displayStatus} />
-        </div>
+        <StatusBadge status={displayStatus} />
       </div>
       
       {/* Timeline прогресса по этапам */}
