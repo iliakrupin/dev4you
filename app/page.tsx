@@ -1,14 +1,14 @@
-"use client";
 import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
 import { TaskCard } from "@/components/task-card";
 import { ListAutoRefresh } from "@/components/list-auto-refresh";
+import { ClearButton } from "@/components/clear-button";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: '#кручуфичу - меняй меня полностью',
+  title: "#кручуфичу - меняй меня полностью",
 };
 
 export default async function HomePage() {
@@ -17,12 +17,6 @@ export default async function HomePage() {
     .from(tasks)
     .orderBy(desc(tasks.createdAt))
     .limit(5);
-
-  const handleClear = async () => {
-    if (!confirm("Удалить ВСЕ задачи?")) return;
-    await fetch("/api/tasks/clear", { method: "POST" });
-    window.location.reload();
-  };
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-4 pb-28 pt-6">
@@ -37,9 +31,7 @@ export default async function HomePage() {
         <p className="text-sm text-muted-foreground">
           Опишите фичу — AI-агент напишет код, протестирует и выкатит на стенд.
         </p>
-        <button onClick={handleClear} className="text-sm text-muted-foreground hover:text-foreground">
-          Очистить
-        </button>
+        <ClearButton />
       </header>
 
       <section className="flex flex-col gap-2">
