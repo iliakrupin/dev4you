@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
+import { TaskCard } from "@/components/task-card";
 import { ListAutoRefresh } from "@/components/list-auto-refresh";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,18 @@ export default async function HomePage() {
           Опишите фичу — AI-агент напишет код, протестирует и выкатит на стенд.
         </p>
       </header>
+
+      <section className="flex flex-col gap-2">
+        {list.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              Пока нет задач. Поставьте первую — посмотрим, как работает агент.
+            </p>
+          </div>
+        ) : (
+          list.map((t) => <TaskCard key={t.id} task={t} />)
+        )}
+      </section>
 
       <Link
         href="/new"
