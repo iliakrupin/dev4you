@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { StatusBadge } from "@/components/status-badge";
+import { formatRelative } from "@/lib/utils";
 import type { Task } from "@/lib/db/schema";
 
 const ACTIVE_STATUSES = [
@@ -106,6 +107,10 @@ export function TaskCard({ task }: { task: Task }) {
           <p className="line-clamp-2 text-sm font-medium text-foreground">
             {task.rawText}
           </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            #{task.id} · {formatRelative(task.createdAt)}
+            {task.telegramUsername ? ` · @${task.telegramUsername}` : ""}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={displayStatus} />
@@ -141,6 +146,46 @@ export function TaskCard({ task }: { task: Task }) {
         </div>
       </div>
       
+      {task.spec?.goal && (
+        <div className="text-xs mt-3">
+          <span className="font-medium">Как понял агент:</span> {task.spec.goal}
+        </div>
+      )}
+      {task.spec?.targetFiles && task.spec.targetFiles.length > 0 && (
+        <div className="text-xs mt-2 text-muted-foreground">
+          <span className="font-medium">Будет править:</span>{" "}
+          <code className="font-mono">{task.spec.targetFiles.join(", ")}</code>
+        </div>
+      )}
+      {task.spec?.filesToDelete && task.spec.filesToDelete.length > 0 && (
+        <div className="text-xs mt-1 text-danger">
+          <span className="font-medium">Удалит:</span>{" "}
+          <code className="font-mono">{task.spec.filesToDelete.join(", ")}</code>
+        </div>
+      )}
+      {task.spec?.changes && (
+        <details className="text-xs mt-2 text-muted-foreground">
+          <summary className="cursor-pointer font-medium hover:text-foreground">
+            Что именно поменяет
+          </summary>
+          <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
+            {task.spec.changes}
+          </pre>
+        </details>
+      )}
+      {task.errorMessage && (
+        <div className="text-xs mt-3 text-danger">
+          <span className="font-medium">Ошибка:</span> {task.errorMessage}
+        </div>
+      )}
+      {task.status === 'failed' && (
+        <button 
+          onClick={handleRetry}
+          className="rounded-none bg-accent text-accent-foreground px-3 py-1.5 text-xs mt-3"
+        >
+          Повторить
+        </button>
+      )}
     </div>
   );
 }
