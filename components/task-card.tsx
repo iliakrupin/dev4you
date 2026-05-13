@@ -14,8 +14,9 @@ const ACTIVE_STATUSES = [
 
 const TWO_MINUTES_MS = 2 * 60 * 1000;
 
-export function TaskCard({ task, onDelete }: { task: Task; onDelete?: () => void }) {
+export function TaskCard({ task }: { task: Task }) {
   const [currentSha, setCurrentSha] = useState<string | null>(null);
+  const [deleted, setDeleted] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -70,23 +71,37 @@ export function TaskCard({ task, onDelete }: { task: Task; onDelete?: () => void
     }
   };
 
+  const handleDelete = async () => {
+    if (!confirm("Удалить задачу?")) return;
+    // Сначала ждём DELETE, ТОЛЬКО ПОТОМ скрываем — если unmount-нуть до завершения,
+    // в Telegram WebView выбрасывает "This page couldn't load".
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/delete`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setDeleted(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert("Не удалось удалить: " + msg);
+    }
+  };
+
   const displayStatus = task.status === 'merged' && !isMergedAndTimePassed() && currentSha !== task.mergeCommitSha ? 'deploying' : task.status;
+
+  if (deleted) return null;
 
   return (
     <div className="group relative block rounded-2xl border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm">
-      {onDelete && (
-        <button
-          onClick={onDelete}
-          className="absolute top-2 right-2 rounded-lg p-1.5 text-muted-foreground hover:bg-danger hover:text-danger-foreground transition-colors"
-          aria-label="Удалить задачу"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 6h18" />
-            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-          </svg>
-        </button>
-      )}
+      <button
+        onClick={handleDelete}
+        className="absolute top-2 right-2 rounded-lg p-1.5 text-muted-foreground hover:bg-danger/10 hover:text-danger transition-colors"
+        aria-label="Удалить задачу"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 6h18" />
+          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+        </svg>
+      </button>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-medium text-foreground">
