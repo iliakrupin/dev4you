@@ -102,7 +102,7 @@ export function TaskCard({ task }: { task: Task }) {
           <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
         </svg>
       </button>
-      <div className="flex items-start justify-between gap-3 mt-6">
+      <div className="flex items-center justify-between gap-3 mt-6">
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-medium text-foreground">
             {task.rawText}
