@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { NewTaskForm } from "./new-task-form";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,10 @@ export default function NewTaskPage() {
         </h1>
 
       </header>
+
+      <Link href="/" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+        ← Назад
+      </Link>
 
       <NewTaskForm />
 
