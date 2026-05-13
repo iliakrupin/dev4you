@@ -3,12 +3,19 @@ import { desc } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
 import { TaskCard } from "@/components/task-card";
 import { ListAutoRefresh } from "@/components/list-auto-refresh";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "#кручуфичу - меняй меня полностью",
 };
+
+async function handleDeleteTask(id: number) {
+  "use server";
+  await db.delete(tasks).where(tasks.id, id);
+  revalidatePath("/");
+}
 
 export default async function HomePage() {
   const list = await db
@@ -40,7 +47,9 @@ export default async function HomePage() {
             </p>
           </div>
         ) : (
-          list.map((t) => <TaskCard key={t.id} task={t} />)
+          list.map((t) => (
+            <TaskCard key={t.id} task={t} onDelete={() => handleDeleteTask(t.id)} />
+          ))
         )}
       </section>
 
