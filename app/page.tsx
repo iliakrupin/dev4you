@@ -9,12 +9,6 @@ export const metadata = {
   title: "#кручуфичу - меняй меня полностью",
 };
 
-async function deleteTask(formData: FormData) {
-  "use server";
-  const id = formData.get("id") as string;
-  await db.delete(tasks).where(tasks.id === parseInt(id));
-}
-
 export default async function HomePage() {
   const list = await db
     .select()
@@ -36,24 +30,6 @@ export default async function HomePage() {
           Опишите фичу — AI-агент напишет код, протестирует и выкатит на стенд.
         </p>
       </header>
-
-      <div className="flex flex-col gap-3">
-        {list.map((task) => (
-          <div key={task.id} className="relative rounded-lg border bg-card p-4 shadow-sm">
-            <form action={deleteTask} className="absolute right-2 top-2">
-              <input type="hidden" name="id" value={task.id.toString()} />
-              <button
-                type="submit"
-                className="rounded bg-destructive px-2 py-1 text-xs font-medium text-destructive-foreground transition hover:bg-destructive/90"
-              >
-                Удалить
-              </button>
-            </form>
-            <p className="text-foreground">{task.title}</p>
-            <p className="text-sm text-muted-foreground">{task.description}</p>
-          </div>
-        ))}
-      </div>
 
       <Link
         href="/new"
