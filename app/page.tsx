@@ -6,6 +6,10 @@ import { ListAutoRefresh } from "@/components/list-auto-refresh";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: '#кручуфичу - меняй меня полностью',
+};
+
 export default async function HomePage() {
   const list = await db
     .select()
