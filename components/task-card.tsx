@@ -70,13 +70,20 @@ export function TaskCard({ task }: { task: Task }) {
 
   const handleDelete = async () => {
     if (!confirm("Удалить задачу?")) return;
-    setDeleted(true);
+    // ВАЖНО: сначала fetch, потом setDeleted. Если сначала setDeleted=true,
+    // компонент unmount-ится, await fetch обрывается и в Telegram WebView
+    // вылетает "This page couldn't load".
     try {
-      await fetch(`/api/tasks/${task.id}/delete`, { method: "DELETE" });
+      const res = await fetch(`/api/tasks/${task.id}/delete`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      setDeleted(true);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       alert("Не удалось удалить: " + msg);
-      setDeleted(false);
     }
   };
 
