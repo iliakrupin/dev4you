@@ -9,6 +9,7 @@ import {
   getBaseBranchSha,
   getCommit,
   getLatestMergeCommit,
+  mergePullRequest,
   openPullRequest,
   readFile,
   writeFile,
@@ -381,6 +382,33 @@ async function finalizeImplement(
   await logEvent(taskId, "implement", "finished", `PR #${pr.number} открыт`, {
     pr,
   });
+
+  // WORKAROUND: Vercel preview provisioning сейчас сломан (Resource provisioning
+  // failed). Не ждём preview success — мержим сразу через Octokit, полагаемся
+  // на production build как тест. Если main упадёт, предыдущая prod-версия
+  // продолжит работать, а задачу можно будет отметить failed позже из
+  // production deployment_status webhook.
+  try {
+    await setStatus(taskId, "deploying");
+    await logEvent(
+      taskId,
+      "deploy",
+      "started",
+      `Мержу PR #${pr.number} в main (preview build пропущен — Vercel issue)`,
+    );
+    const merged = await mergePullRequest(pr.number);
+    await setStatus(taskId, "merged", { mergeCommitSha: merged.sha });
+    await logEvent(
+      taskId,
+      "deploy",
+      "finished",
+      `Внедрено в main: ${merged.sha.slice(0, 7)}`,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await setStatus(taskId, "failed", { errorMessage: `deploy: ${msg}` });
+    await logEvent(taskId, "deploy", "error", msg);
+  }
 }
 
 async function runRevert(taskId: number, task: Task): Promise<void> {
