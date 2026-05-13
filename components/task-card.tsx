@@ -21,6 +21,11 @@ export function TaskCard({ task }: { task: Task }) {
     return progressMap[task.status] ?? "0%";
   };
 
+  const isActiveStatus = () => {
+    const activeStatuses = ["analyzing", "implementing", "ready_for_review", "testing", "deploying"];
+    return activeStatuses.includes(task.status);
+  };
+
   return (
     <div className="group block rounded-2xl border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -46,7 +51,7 @@ export function TaskCard({ task }: { task: Task }) {
         <div className="flex items-center gap-2">
           <div className="flex-1 rounded-full bg-border h-2">
             <div 
-              className="h-2 rounded-full bg-accent transition-all duration-300" 
+              className={`h-2 rounded-full bg-accent transition-all duration-300 ${isActiveStatus() ? "animate-pulse" : ""}`} 
               style={{ width: getProgressWidth() }}
             />
           </div>
