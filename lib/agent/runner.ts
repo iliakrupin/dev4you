@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db, tasks, taskEvents, type Task, type TaskSpec } from "@/lib/db";
 import { llm, qwenModel } from "./llm";
 import { ANALYSIS_SYSTEM, IMPLEMENT_SYSTEM } from "./prompts";
-import { ALLOWED_HINT, isAllowed } from "./sandbox";
+import { ALLOWED_HINT, isAllowed, isProtectedFromDeletion } from "./sandbox";
 import {
   commitMultipleFiles,
   createBranch,
@@ -201,7 +201,11 @@ export async function runAnalysis(taskId: number): Promise<void> {
 
     // Доп. фильтр sandbox: даже если LLM указала запрещённые файлы — выкинем
     spec.targetFiles = spec.targetFiles.filter(isAllowed);
-    spec.filesToDelete = (spec.filesToDelete ?? []).filter(isAllowed);
+    // filesToDelete дополнительно фильтруется по PROTECTED_FROM_DELETION:
+    // нельзя удалить структурно важные файлы (TaskCard, page.tsx и т.п.)
+    spec.filesToDelete = (spec.filesToDelete ?? [])
+      .filter(isAllowed)
+      .filter((p) => !isProtectedFromDeletion(p));
 
     await setStatus(taskId, "analyzed", { spec });
     await logEvent(taskId, "analysis", "finished", "План готов", { spec });

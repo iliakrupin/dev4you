@@ -4,6 +4,30 @@
  *
  * Пути относительные к корню репозитория.
  */
+/**
+ * Файлы, которые агент НИКОГДА не может удалить — даже если попросит
+ * filesToDelete. Их можно ТОЛЬКО редактировать. Сделано после задачи #55,
+ * где "удали карточки с ошибками" было истолковано как "удали компонент
+ * TaskCard целиком" — главная сломалась.
+ */
+const PROTECTED_FROM_DELETION: RegExp[] = [
+  /^app\/page\.tsx$/,
+  /^app\/layout\.tsx$/,
+  /^app\/globals\.css$/,
+  /^app\/new\/.*$/,
+  /^app\/tasks\/.*$/,
+  /^components\/task-card\.tsx$/,
+  /^components\/status-badge\.tsx$/,
+  /^components\/timeline\.tsx$/,
+  /^components\/list-auto-refresh\.tsx$/,
+  /^components\/auto-refresh\.tsx$/,
+];
+
+export function isProtectedFromDeletion(path: string): boolean {
+  const normalized = path.replace(/^\.\//, "").replace(/^\/+/, "");
+  return PROTECTED_FROM_DELETION.some((re) => re.test(normalized));
+}
+
 const ALLOWED_PATTERNS: RegExp[] = [
   // Тема приложения
   /^app\/globals\.css$/,
