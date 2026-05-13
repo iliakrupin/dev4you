@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 export function NewTaskForm() {
   const router = useRouter();
   const [text, setText] = useState("");
+  const [developmentTime, setDevelopmentTime] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -19,6 +20,11 @@ export function NewTaskForm() {
     }
     if (trimmed.length > 2000) {
       setError("Слишком длинно — уложитесь в 2000 символов");
+      return;
+    }
+    const time = parseInt(developmentTime, 10);
+    if (developmentTime && (isNaN(time) || time <= 0)) {
+      setError("Затраченное время должно быть положительным числом");
       return;
     }
 
@@ -36,7 +42,7 @@ export function NewTaskForm() {
             "Content-Type": "application/json",
             ...(initData ? { "X-Telegram-Init-Data": initData } : {}),
           },
-          body: JSON.stringify({ text: trimmed, status: "todo" }),
+          body: JSON.stringify({ text: trimmed, status: "todo", developmentTime: time || 0 }),
         });
 
         if (!res.ok) {
@@ -62,6 +68,18 @@ export function NewTaskForm() {
         rows={6}
         className="w-full resize-none rounded-2xl border border-border bg-surface px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
       />
+      <div className="flex flex-col gap-1">
+        <label className="text-sm text-foreground">Затраченное время (минуты)</label>
+        <input
+          type="number"
+          name="developmentTime"
+          value={developmentTime}
+          onChange={(e) => setDevelopmentTime(e.target.value)}
+          disabled={pending}
+          placeholder="0"
+          className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
+        />
+      </div>
       {error && (
         <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
