@@ -52,6 +52,9 @@ export function TaskCard({ task }: { task: Task }) {
           </div>
         </div>
       </div>
+      
+      {task.spec?.goal && <div className='text-xs mt-3'><span className='font-medium'>Как понял агент:</span> <span>{task.spec.goal}</span></div>}
+      {task.errorMessage && <div className='text-xs mt-3 text-danger'><span className='font-medium'>Ошибка:</span> <span>{task.errorMessage}</span></div>}
     </div>
   );
 }
