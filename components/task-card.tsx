@@ -2,6 +2,14 @@ import { StatusBadge } from "@/components/status-badge";
 import { formatRelative } from "@/lib/utils";
 import type { Task } from "@/lib/db/schema";
 
+const ACTIVE_STATUSES = [
+  "analyzing",
+  "implementing",
+  "ready_for_review",
+  "testing",
+  "deploying",
+];
+
 export function TaskCard({ task }: { task: Task }) {
   const getProgressWidth = () => {
     const progressMap: Record<string, string> = {
@@ -46,7 +54,7 @@ export function TaskCard({ task }: { task: Task }) {
         <div className="flex items-center gap-2">
           <div className="flex-1 rounded-full bg-border h-2">
             <div 
-              className="h-2 rounded-full bg-accent transition-all duration-300" 
+              className={`h-2 rounded-full bg-accent transition-all duration-300 ${ACTIVE_STATUSES.includes(task.status) ? "animate-pulse" : ""}`} 
               style={{ width: getProgressWidth() }}
             />
           </div>
