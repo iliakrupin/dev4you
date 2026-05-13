@@ -3,7 +3,6 @@ import { desc } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
 import { TaskCard } from "@/components/task-card";
 import { ListAutoRefresh } from "@/components/list-auto-refresh";
-import { ClearButton } from "@/components/clear-button";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +30,6 @@ export default async function HomePage() {
         <p className="text-sm text-muted-foreground">
           Опишите фичу — AI-агент напишет код, протестирует и выкатит на стенд.
         </p>
-        <ClearButton />
       </header>
 
       <section className="flex flex-col gap-2">
