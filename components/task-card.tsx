@@ -59,6 +59,7 @@ export function TaskCard({ task }: { task: Task }) {
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
           <span>Создана</span>
           <span>В работе</span>
+          <span>Тестируется</span>
           <span>Завершена</span>
         </div>
         <div className="flex items-center gap-2">
