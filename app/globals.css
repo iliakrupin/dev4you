@@ -6,15 +6,15 @@
  * выполняя демо-задачу "сменить цвета темы".
  */
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #f8fafc;
+  --foreground: #0f172a;
   --surface: #ffffff;
-  --surface-muted: #171717;
-  --border: #262626;
-  --accent: #525252;
+  --surface-muted: #f1f5f9;
+  --border: #e2e8f0;
+  --accent: #4f46e5;
   --accent-foreground: #ffffff;
-  --accent-soft: rgba(82, 82, 82, 0.15);
-  --muted-foreground: #a3a3a3;
+  --accent-soft: rgba(79, 70, 229, 0.1);
+  --muted-foreground: #64748b;
   --success: #16a34a;
   --warning: #f59e0b;
   --danger: #dc2626;
