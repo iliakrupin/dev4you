@@ -11,10 +11,10 @@
   --surface: #ffffff;
   --surface-muted: #f1f5f9;
   --border: #e2e8f0;
-  --accent: #22c55e;
-  --highlight: #ef4444;
+  --accent: #16a34a;
+  --highlight: #dc2626;
   --accent-foreground: #ffffff;
-  --accent-soft: rgba(79, 70, 229, 0.1);
+  --accent-soft: rgba(22, 163, 74, 0.1);
   --muted-foreground: #64748b;
   --success: #16a34a;
   --warning: #f59e0b;
