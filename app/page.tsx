@@ -20,7 +20,7 @@ export default async function HomePage() {
     .limit(5);
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-4 pb-28 pt-6">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-4 pb-28 pt-6 bg-[var(--background)]">
       <ListAutoRefresh />
       <ThemeSwitcher />
       <ColorPicker />

@@ -6,12 +6,13 @@
  * выполняя демо-задачу "сменить цвета темы".
  */
 :root {
-  --background: #f8fafc;
+  --background: #fef9c3;
   --foreground: #0f172a;
   --surface: #ffffff;
   --surface-muted: #f1f5f9;
   --border: #e2e8f0;
-  --accent: #10b981;
+  --accent: #22c55e;
+  --highlight: #ef4444;
   --accent-foreground: #ffffff;
   --accent-soft: rgba(79, 70, 229, 0.1);
   --muted-foreground: #64748b;
@@ -56,7 +57,7 @@
 
 html,
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
 }
 
