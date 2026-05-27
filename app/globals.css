@@ -11,9 +11,9 @@
   --surface: #ffffff;
   --surface-muted: #f1f5f9;
   --border: #e2e8f0;
-  --accent: #22c55e;
+  --accent: #10b981;
   --accent-foreground: #ffffff;
-  --accent-soft: rgba(34, 197, 94, 0.1);
+  --accent-soft: rgba(79, 70, 229, 0.1);
   --muted-foreground: #64748b;
   --success: #16a34a;
   --warning: #f59e0b;
@@ -46,7 +46,7 @@
     --surface: #111827;
     --surface-muted: #21262d;
     --border: #1f2937;
-    --accent: #22c55e;
+    --accent: #a78bfa;
     --accent-foreground: #0b1220;
     --accent-soft: #161b22;
     --muted-foreground: #8b949e;

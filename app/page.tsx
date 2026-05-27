@@ -4,7 +4,7 @@ import { db, tasks } from "@/lib/db";
 import { TaskCard } from "@/components/task-card";
 import { ListAutoRefresh } from "@/components/list-auto-refresh";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { ColorPicker } from "@/components/color-picker";
+import { ColorPicker } from '@/components/color-picker';
 
 export const dynamic = "force-dynamic";
 
