@@ -250,6 +250,67 @@ const EditsSchema = z.object({
 });
 
 /**
+ * Проверяет что все новые @/ импорты в изменённом файле указывают
+ * на существующие в репозитории или создаваемые в этом же task файлы.
+ * Если нашёл несуществующий импорт — бросает Error ДО коммита.
+ *
+ * @param originalContent — исходное содержимое файла (до edits)
+ * @param newContent      — содержимое после применения edits
+ * @param taskFiles       — пути всех файлов, которые task создаёт/меняет
+ */
+async function validateNewImports(
+  originalContent: string,
+  newContent: string,
+  taskFiles: string[],
+): Promise<void> {
+  const extractImports = (src: string): Set<string> => {
+    const result = new Set<string>();
+    const re = /from\s+['"](@\/[^'"]+)['"]/g;
+    let m;
+    while ((m = re.exec(src)) !== null) result.add(m[1]);
+    return result;
+  };
+
+  const added = [...extractImports(newContent)].filter(
+    (imp) => !extractImports(originalContent).has(imp),
+  );
+  if (added.length === 0) return;
+
+  const missing: string[] = [];
+  for (const imp of added) {
+    const base = imp.replace(/^@\//, ""); // @/components/foo → components/foo
+
+    // Создаётся в рамках этого же task? (pending или уже produced)
+    const inTask = taskFiles.some(
+      (p) =>
+        p === base ||
+        p === base + ".tsx" ||
+        p === base + ".ts" ||
+        p === base + ".jsx" ||
+        p === base + ".js",
+    );
+    if (inTask) continue;
+
+    // Существует ли файл в репозитории?
+    let found = false;
+    for (const ext of [".tsx", ".ts", ".jsx", ".js", ""]) {
+      if (await readFile(base + ext)) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) missing.push(imp);
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Импорт несуществующих модулей: ${missing.join(", ")}. ` +
+        `Добавь эти файлы в targetFiles или не добавляй импорты.`,
+    );
+  }
+}
+
+/**
  * Применяет список замен к файлу. Каждая find должна найтись в текущем
  * содержимом ровно (может встречаться несколько раз — заменим все вхождения).
  */
@@ -411,6 +472,14 @@ export async function runImplement(taskId: number): Promise<{ more: boolean }> {
         `Применено ${result.applied}/${parsed.edits.length} замен. Промахи: ${result.missing.join("; ")}`,
       );
     }
+
+    // Проверяем: все новые @/ импорты должны указывать на существующие файлы
+    // или файлы, которые создаются в этом же task.
+    const allTaskFiles = [
+      ...(task.spec.targetFiles ?? []),
+      ...produced.map((f) => f.path),
+    ];
+    await validateNewImports(current.content, result.content, allTaskFiles);
 
     produced = [
       ...produced,
