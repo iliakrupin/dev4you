@@ -101,7 +101,7 @@ export function TaskCard({ task }: { task: Task }) {
   if (deleted) return null;
 
   return (
-    <div className="group relative block rounded-none border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm border-l-4 border-[var(--highlight)]">
+    <div className="group relative block rounded-xl overflow-hidden border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm border-l-4 border-[var(--highlight)]">
       <div className="flex items-center justify-between gap-3 mt-6">
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-medium text-foreground">
