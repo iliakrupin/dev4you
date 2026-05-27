@@ -101,7 +101,7 @@ export function TaskCard({ task }: { task: Task }) {
   if (deleted) return null;
 
   return (
-    <div className="group relative block rounded-none border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm">
+    <div className="group relative block rounded-none border border-border bg-surface p-4 transition hover:border-accent/50 hover:shadow-sm border-l-4 border-[var(--highlight)]">
       <div className="flex items-center justify-between gap-3 mt-6">
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-medium text-foreground">
@@ -181,7 +181,7 @@ export function TaskCard({ task }: { task: Task }) {
       {task.status === 'failed' && (
         <button 
           onClick={handleRetry}
-          className="rounded-none bg-accent text-accent-foreground px-3 py-1.5 text-xs mt-3"
+          className="rounded-none bg-[var(--accent)] text-white hover:opacity-90 px-3 py-1.5 text-xs mt-3"
         >
           Повторить
         </button>
