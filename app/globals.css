@@ -6,13 +6,13 @@
  * выполняя демо-задачу "сменить цвета темы".
  */
 :root {
-  --background: #fef9c3;
+  --background: oklch(0.98 0.12 95);
   --foreground: #0f172a;
   --surface: #ffffff;
   --surface-muted: #f1f5f9;
   --border: #e2e8f0;
-  --accent: #22c55e;
-  --highlight: #ef4444;
+  --accent: oklch(0.72 0.18 145);
+  --highlight: oklch(0.64 0.21 25);
   --accent-foreground: #ffffff;
   --accent-soft: rgba(79, 70, 229, 0.1);
   --muted-foreground: #64748b;
