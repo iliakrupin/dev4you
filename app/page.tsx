@@ -3,6 +3,7 @@ import { desc } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
 import { TaskCard } from "@/components/task-card";
 import { ListAutoRefresh } from "@/components/list-auto-refresh";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function HomePage() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-4 pb-28 pt-6">
       <ListAutoRefresh />
+      <ThemeSwitcher />
       <header className="space-y-1">
         <p className="text-xs font-medium uppercase tracking-wider text-accent">
           #КручуФичу
