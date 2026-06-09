@@ -23,7 +23,7 @@
 3. **«Удали кнопку Очистить»** — агент идентифицирует и компонент, и его использование, использует `filesToDelete` для полного удаления.
 4. **«Переименуй заголовок X в Y»** — простой find/replace через diff-формат.
 
-После демо любой зритель может вернуть всё к исходному состоянию: открыть `https://dev4you-pi.vercel.app/api/admin/reset` (см. §9).
+После демо любой зритель может вернуть всё к исходному состоянию: `POST https://dev4you-pi.vercel.app/api/admin/reset` (см. §9).
 
 ## 4. Workflow
 
@@ -97,7 +97,7 @@
 | Слой | Решение |
 |---|---|
 | Frontend | Next.js 16 (App Router, React 19), Tailwind v4, mobile-first |
-| Auth | Telegram WebApp `initData` (HMAC-SHA256, Web Crypto API) |
+| Auth | Telegram WebApp `initData` (HMAC-SHA256, Web Crypto API) + replay-защита по `auth_date` (TTL 24ч) + constant-time сравнение |
 | API | Next.js Route Handlers, **Edge runtime** (25s default, увеличено через `maxDuration`) |
 | База данных | Vercel Postgres / Neon serverless + Drizzle ORM |
 | Векторный поиск | pgvector (запланирован, в MVP не используется) |
@@ -106,17 +106,19 @@
 | Доступ к local Qwen | `<ip>.nip.io` обходит запрет Edge на прямой fetch по IP |
 | Output формат LLM | **diff-based** (`{ edits: [{ find, replace }] }`) — короткий ответ, нет таймаутов |
 | Git | Octokit REST + **GraphQL `createCommitOnBranch`** (один коммит на все файлы) |
-| Стенд | ~~Vercel Preview Deployments~~ → **immediate-merge через Octokit** (см. §7) |
+| Стенд | ~~Vercel Preview Deployments~~ → **immediate-merge через Octokit** (единая точка мержа, см. §7) |
+| Webhooks | `/api/webhooks/{github,vercel}` — обязательная проверка подписи (HMAC), fail-closed без секрета; мерж из них убран |
 | Хостинг | Vercel **Pro** ($20/мес) — Hobby упирался в квоты |
 | Live UI | `<ListAutoRefresh/>` через `router.refresh()` каждые 3 сек + `<AutoRefresh/>` через `requestIdleCallback` для hard reload по смене commit SHA |
-| Защита от наплыва | mutex (одна активная задача), rate-limit 60 сек / `telegram_id`, auto-cleanup task-веток |
+| Защита от наплыва | mutex (DB-индекс `one_active_task`), rate-limit 60 сек / `telegram_id`, watchdog-cron (добивает зависшие), auto-cleanup task-веток |
 
 ## 7. Ограничения и решения
 
 ### Vercel preview deployments → "Resource provisioning failed"
 - Vercel в течение дня стабильно отказывал в provisioning preview-окружений для проекта (даже на Pro, даже через `--prebuilt`).
-- **Workaround:** после открытия PR агент **сразу мержит** через Octokit, не дожидаясь preview build. Production build выступает в роли «теста». Если main упадёт — webhook ловит `deployment_status=failure` для production и помечает задачу `failed` с ссылкой на лог.
+- **Workaround:** после открытия PR агент **сразу мержит** через Octokit, не дожидаясь preview build. Production build выступает в роли «теста». Если main упадёт — подписанный webhook ловит `deployment_status=failure` для production и помечает задачу `failed` с ссылкой на лог.
 - Trade-off: нет валидации до merge. Сломанный код агента может попасть в main → prod stuck на старой версии. В roadmap — auto-revert main commit при production failure.
+- **Единая точка мержа:** мерж выполняется ТОЛЬКО в `finalizeImplement`. Прежде его дублировали оба webhook-обработчика (`deployment.succeeded`), что давало гонку тройного мержа (успешная задача могла перезаписаться в `failed`). Теперь webhook'и только фиксируют preview URL / помечают prod-failure, но не мержат.
 
 ### Edge запрещает fetch по IP
 - Local Qwen-сервер по адресу `212.41.6.240` без домена.
@@ -141,19 +143,22 @@
 ### Конкуренция за main
 - Несколько одновременных задач = конфликты на git merge (expectedHeadOid устаревает).
 - **Решения:**
-  - **Mutex**: новая задача отказывается с 429, если уже есть активная (любой статус не в `merged/failed/cancelled`).
+  - **Mutex (атомарный)**: новая задача отказывается с 429, если уже есть активная (любой статус не в `merged/failed/cancelled`). Подкреплён частичным уникальным индексом `one_active_task` в БД (все активные строки делят один ключ → второй конкурентный INSERT падает с 23505, ловим в route). SELECT-проверка осталась как быстрый путь с дружелюбным сообщением; индекс — атомарный backstop против гонки.
+  - **Watchdog-cron**: задача, зависшая в активном статусе дольше 5 минут (потерянный self-trigger, упавшая Edge-функция), держала бы мьютекс вечно и блокировала систему. `/api/cron/watchdog` (каждые 5 мин, см. `vercel.json`) помечает такие `failed` и освобождает слот.
   - **Rate-limit**: 60 секунд между задачами от одного `telegram_id`. Защита от спама.
-  - **Auto-cleanup веток**: после merge `octokit.git.deleteRef` сразу удаляет `task/N` — освобождает слот Vercel preview branch (на Pro их 100).
+  - **Auto-cleanup веток**: после merge `octokit.git.deleteRef` сразу удаляет `task/N` — освобождает слот Vercel preview branch (на Pro их 100). `retry` тоже чистит ветку перед перезапуском (иначе `createBranch` → 422).
 
 ## 8. Безопасность и устойчивость
 
-- Telegram `initData` валидируется через HMAC от bot token (Web Crypto API, edge-friendly).
+- Telegram `initData` валидируется через HMAC от bot token (Web Crypto API, edge-friendly). Добавлены: **replay-защита** (отказ при `auth_date` старше 24ч) и **constant-time** сравнение хеша. **Fail-closed:** если `initData` передан, но не прошёл проверку — 401 (а не молчаливый откат в ANON). Отсутствие заголовка вовсе = публичный демо-режим (осознанный выбор, см. §9).
+- **Webhook'и подписаны.** `/api/webhooks/{github,vercel}` проверяют HMAC-подпись (`x-hub-signature-256` / `x-vercel-signature`) от секрета и отклоняют запрос без/с неверной подписью. Без заданного секрета — 503 (fail-closed). Раньше эндпоинты были открыты и умели мержить произвольный PR — мерж из них убран, осталась только фиксация статуса.
 - Все секреты — через Vercel Environment Variables, в коде `process.env` единой точкой ([`lib/env.ts`](lib/env.ts)) с zod-валидацией.
 - `.env.local` в `.gitignore`, `.env.example` показывает только имена.
 - Public GitHub репо: код виден сообществу, токены не попадают (env-валидация при билде ловит опечатки).
 - В MVP **нет аутентификации в смысле user accounts** — `telegram_id` достаточно для идентификации в Mini App. Для публичного веба `telegramUserId=0`, `username='anon'`.
-- Mutex + rate-limit + cleanup веток (см. §7) — защита от наплыва зрителей в TG-сообществе.
-- Sandbox + `PROTECTED_FROM_DELETION` (см. §5) — защита от случайного удаления критичных файлов агентом.
+- **Octokit с таймаутом** (8с/запрос через AbortController) — чтобы зависший GitHub не обрывал плотную 25s-функцию на середине `finalizeImplement`.
+- Mutex (DB-индекс) + watchdog + rate-limit + cleanup веток (см. §7) — защита от наплыва зрителей и самоблокировки системы.
+- Sandbox + `PROTECTED_FROM_DELETION` (см. §5) — защита от случайного удаления критичных файлов агентом; проверка от удаления энфорсится на write-границе (`commitMultipleFiles`), а не только на анализе.
 
 ## 9. Reset to baseline (публичный endpoint)
 
@@ -168,25 +173,27 @@ git push origin demo-baseline -f
 ```
 
 ### Reset
-`POST /api/admin/reset` (или просто `GET` в браузере) через Octokit GraphQL `createCommitOnBranch` одним коммитом перезаписывает все whitelist-файлы их версиями из `demo-baseline`. После этого Vercel сам пересобирает production за ~60 секунд.
+`POST /api/admin/reset` через Octokit GraphQL `createCommitOnBranch` одним коммитом перезаписывает все whitelist-файлы их версиями из `demo-baseline`. После этого Vercel сам пересобирает production за ~60 секунд.
 
 ```bash
-# Через curl
+# Публично (если ADMIN_RESET_TOKEN не задан)
 curl -X POST https://dev4you-pi.vercel.app/api/admin/reset
 
-# Или прямо из адресной строки браузера/телефона
-https://dev4you-pi.vercel.app/api/admin/reset
+# Если ADMIN_RESET_TOKEN задан — нужен токен
+curl -X POST -H "x-admin-token: <ТОКЕН>" https://dev4you-pi.vercel.app/api/admin/reset
 ```
 
 По умолчанию endpoint также удаляет все задачи из БД. Если хотите оставить историю задач: `?clearTasks=false`.
 
-### Намеренно без аутентификации
-Endpoint **публичный** — это часть демо-концепции «играйте сколько хотите, всегда есть откат». Любой зритель в момент демонстрации может тыкнуть и вернуть всё к baseline. Это:
+### Публичный по умолчанию, но только POST
+Endpoint **публичный** — это часть демо-концепции «играйте сколько хотите, всегда есть откат». Любой зритель в момент демонстрации может вернуть всё к baseline. Это:
 - Снимает с автора роль «единственного оператора reset'а»
 - Делает демо устойчивым: если кто-то сильно сломал — следующий зритель может починить
 - Превращает reset в часть UI взаимодействия, а не в админку
 
-Если когда-то решите ограничить — добавьте простую проверку секрета в начале handler'а.
+Два ограничения, не ломающие концепцию:
+- **Только POST.** GET-вариант убран: он срабатывал от prefetch браузера/антивирусов/сканеров превью — то есть `main` мог затереться без участия человека. Reset должен быть осознанным действием.
+- **Опциональный токен.** Если задан `ADMIN_RESET_TOKEN`, endpoint требует его (`x-admin-token` или `?token=`) — так доступ закрывается в любой момент без правки кода (напр. для прод-контура). Пусто = публично.
 
 ### Что делает endpoint пошагово
 1. Через Octokit `git/getTree(recursive)` читает дерево по ref `demo-baseline`.
