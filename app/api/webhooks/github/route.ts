@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, tasks, taskEvents } from "@/lib/db";
-import { mergePullRequest } from "@/lib/github";
+import { env as appEnv } from "@/lib/env";
+import { verifyGithubSignature } from "@/lib/webhook-verify";
 
 export const runtime = "edge";
 export const maxDuration = 25;
@@ -41,9 +42,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ignored: `event=${event}` });
   }
 
+  // Эндпоинт публичный → обязательна проверка подписи. Без секрета —
+  // fail-closed: иначе любой POST мог бы помечать задачи failed.
+  const secret = appEnv.GITHUB_WEBHOOK_SECRET;
+  if (!secret) {
+    return NextResponse.json(
+      { error: "GITHUB_WEBHOOK_SECRET не настроен" },
+      { status: 503 },
+    );
+  }
+  const raw = await req.text();
+  const validSig = await verifyGithubSignature(
+    raw,
+    req.headers.get("x-hub-signature-256"),
+    secret,
+  );
+  if (!validSig) {
+    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
+  }
+
   let body: Payload;
   try {
-    body = (await req.json()) as Payload;
+    body = JSON.parse(raw) as Payload;
   } catch {
     return NextResponse.json({ error: "bad json" }, { status: 400 });
   }
@@ -130,62 +150,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, marked: "failed" });
   }
 
-  // Обновляем статус и мержим
-  try {
-    await db
-      .update(tasks)
-      .set({
-        status: "tested",
-        previewUrl: body.deployment_status?.target_url ?? task.previewUrl,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, task.id));
-    await db.insert(taskEvents).values({
-      taskId: task.id,
-      stage: "test",
-      kind: "finished",
-      message: `Vercel preview готов: ${body.deployment_status?.target_url ?? ""}`,
-    });
-
-    await db
-      .update(tasks)
-      .set({ status: "deploying", updatedAt: new Date() })
-      .where(eq(tasks.id, task.id));
-
-    const merged = await mergePullRequest(task.prNumber);
-
-    await db
-      .update(tasks)
-      .set({
-        status: "merged",
-        mergeCommitSha: merged.sha,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, task.id));
-    await db.insert(taskEvents).values({
-      taskId: task.id,
-      stage: "deploy",
-      kind: "finished",
-      message: `Внедрено в main: ${merged.sha.slice(0, 7)}`,
-    });
-
-    return NextResponse.json({ ok: true, merged: true, sha: merged.sha });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await db
-      .update(tasks)
-      .set({
-        status: "failed",
-        errorMessage: `deploy: ${msg}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, task.id));
-    await db.insert(taskEvents).values({
-      taskId: task.id,
-      stage: "deploy",
-      kind: "error",
-      message: msg,
-    });
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
+  // Preview собрался. Мерж выполняется единой точкой в finalizeImplement
+  // (immediate-merge workaround), поэтому здесь НЕ мержим — только фиксируем
+  // preview URL. Это убирает гонку тройного мержа.
+  await db
+    .update(tasks)
+    .set({
+      previewUrl: body.deployment_status?.target_url ?? task.previewUrl,
+      updatedAt: new Date(),
+    })
+    .where(eq(tasks.id, task.id));
+  return NextResponse.json({ ok: true, previewRecorded: true });
 }

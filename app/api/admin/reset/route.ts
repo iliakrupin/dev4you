@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, tasks } from "@/lib/db";
+import { env } from "@/lib/env";
 import {
   commitMultipleFiles,
   getAllowedFilesAtRef,
@@ -10,9 +11,15 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * Сброс приложения к git tag `demo-baseline`. Намеренно ПУБЛИЧНЫЙ —
- * любой зритель демо может тыкнуть и вернуть всё в исходное состояние.
- * Это часть концепции «играйте сколько хотите, всегда есть откат».
+ * Сброс приложения к git tag `demo-baseline`.
+ *
+ * Демо-концепция «играйте сколько хотите, всегда есть откат» сохраняется:
+ * reset ПУБЛИЧНЫЙ по умолчанию — любой зритель может вернуть всё в исходное.
+ * Два отличия от прежнего поведения:
+ *   - только POST (GET убран: он срабатывал от prefetch/сканеров/антивирусов —
+ *     случайное затирание main; reset должен быть осознанным действием);
+ *   - если задан ADMIN_RESET_TOKEN — требуем его (можно закрыть доступ в любой
+ *     момент без правки кода, напр. для прод-контура). Не задан — публично.
  *
  * Что делает:
  * 1. Читает все whitelist-файлы из tag demo-baseline
@@ -23,6 +30,17 @@ export const maxDuration = 60;
  */
 export async function POST(req: Request) {
   const url = new URL(req.url);
+
+  // Токен опционален: enforce только если задан.
+  const token = env.ADMIN_RESET_TOKEN;
+  if (token) {
+    const provided =
+      req.headers.get("x-admin-token") ?? url.searchParams.get("token");
+    if (provided !== token) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+  }
+
   const clearTasks = url.searchParams.get("clearTasks") !== "false";
 
   try {
@@ -59,6 +77,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-
-// GET тоже разрешён — удобно дёрнуть прямо из адресной строки браузера
-export const GET = POST;

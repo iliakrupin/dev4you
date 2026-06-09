@@ -24,6 +24,13 @@ export const env = createEnv({
     OPENROUTER_API_KEY: z.string().optional(),
     OPENROUTER_BASE_URL: z.string().optional(),
     OPENROUTER_MODEL: z.string().optional(),
+    // Секреты для верификации webhook'ов и админ-эндпоинтов. Опциональны на
+    // уровне валидации (чтобы их отсутствие не роняло boot), но сами эндпоинты
+    // fail-closed: без заданного секрета запрос отклоняется (503/401).
+    GITHUB_WEBHOOK_SECRET: z.string().optional(),
+    VERCEL_WEBHOOK_SECRET: z.string().optional(),
+    ADMIN_RESET_TOKEN: z.string().optional(),
+    CRON_SECRET: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: urlLike,
@@ -42,6 +49,10 @@ export const env = createEnv({
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL: process.env.OPENROUTER_BASE_URL,
     OPENROUTER_MODEL: process.env.OPENROUTER_MODEL,
+    GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET,
+    VERCEL_WEBHOOK_SECRET: process.env.VERCEL_WEBHOOK_SECRET,
+    ADMIN_RESET_TOKEN: process.env.ADMIN_RESET_TOKEN,
+    CRON_SECRET: process.env.CRON_SECRET,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
   emptyStringAsUndefined: true,

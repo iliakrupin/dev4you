@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, tasks, taskEvents } from "@/lib/db";
-import { mergePullRequest } from "@/lib/github";
+import { env } from "@/lib/env";
+import { verifyVercelSignature } from "@/lib/webhook-verify";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -31,9 +32,27 @@ type VercelEvent = {
 };
 
 export async function POST(req: NextRequest) {
+  // Публичный эндпоинт → обязательна проверка подписи. Без секрета fail-closed.
+  const secret = env.VERCEL_WEBHOOK_SECRET;
+  if (!secret) {
+    return NextResponse.json(
+      { error: "VERCEL_WEBHOOK_SECRET не настроен" },
+      { status: 503 },
+    );
+  }
+  const raw = await req.text();
+  const validSig = await verifyVercelSignature(
+    raw,
+    req.headers.get("x-vercel-signature"),
+    secret,
+  );
+  if (!validSig) {
+    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
+  }
+
   let body: VercelEvent;
   try {
-    body = (await req.json()) as VercelEvent;
+    body = JSON.parse(raw) as VercelEvent;
   } catch {
     return NextResponse.json({ error: "bad json" }, { status: 400 });
   }
@@ -77,13 +96,11 @@ export async function POST(req: NextRequest) {
   if (body.type === "deployment.succeeded" || body.type === "deployment.ready") {
     if (task.status === "merged") return NextResponse.json({ ok: true });
 
+    // Preview готов. Мерж — единой точкой в finalizeImplement, здесь только
+    // фиксируем preview URL (убираем гонку тройного мержа).
     await db
       .update(tasks)
-      .set({
-        status: "tested",
-        previewUrl: url,
-        updatedAt: new Date(),
-      })
+      .set({ previewUrl: url, updatedAt: new Date() })
       .where(eq(tasks.id, task.id));
     await db.insert(taskEvents).values({
       taskId: task.id,
@@ -91,50 +108,7 @@ export async function POST(req: NextRequest) {
       kind: "finished",
       message: `Preview готов: ${url}`,
     });
-
-    // Автоматический мердж — этап deploy
-    if (task.prNumber) {
-      try {
-        await db
-          .update(tasks)
-          .set({ status: "deploying", updatedAt: new Date() })
-          .where(eq(tasks.id, task.id));
-
-        const merged = await mergePullRequest(task.prNumber);
-        await db
-          .update(tasks)
-          .set({
-            status: "merged",
-            mergeCommitSha: merged.sha,
-            updatedAt: new Date(),
-          })
-          .where(eq(tasks.id, task.id));
-        await db.insert(taskEvents).values({
-          taskId: task.id,
-          stage: "deploy",
-          kind: "finished",
-          message: `Внедрено в main: ${merged.sha.slice(0, 7)}`,
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        await db
-          .update(tasks)
-          .set({
-            status: "failed",
-            errorMessage: `merge: ${msg}`,
-            updatedAt: new Date(),
-          })
-          .where(eq(tasks.id, task.id));
-        await db.insert(taskEvents).values({
-          taskId: task.id,
-          stage: "deploy",
-          kind: "error",
-          message: msg,
-        });
-      }
-    }
-
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, previewRecorded: true });
   }
 
   if (body.type === "deployment.error" || body.type === "deployment.canceled") {

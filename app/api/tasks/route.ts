@@ -42,8 +42,17 @@ export async function POST(req: NextRequest) {
   const initData = req.headers.get("x-telegram-init-data");
   let user = ANON_USER;
   if (initData) {
+    // initData передан, но не прошёл HMAC/replay-проверку — это подмена,
+    // отклоняем (не откатываемся молча в ANON). Отсутствие заголовка вовсе —
+    // публичный демо-режим (ANON), это осознанный выбор продукта.
     const parsed = await validateInitData(initData);
-    if (parsed) user = parsed;
+    if (!parsed) {
+      return NextResponse.json(
+        { error: "Невалидная авторизация Telegram" },
+        { status: 401 },
+      );
+    }
+    user = parsed;
   }
 
   // 1. Mutex: одна активная задача за раз
@@ -89,15 +98,30 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const [task] = await db
-    .insert(tasks)
-    .values({
-      rawText: body.text,
-      telegramUserId: user.id,
-      telegramUsername: user.username ?? null,
-      status: "queued",
-    })
-    .returning();
+  let task;
+  try {
+    [task] = await db
+      .insert(tasks)
+      .values({
+        rawText: body.text,
+        telegramUserId: user.id,
+        telegramUsername: user.username ?? null,
+        status: "queued",
+      })
+      .returning();
+  } catch (err) {
+    // Атомарный backstop мьютекса: частичный уникальный индекс one_active_task
+    // (см. schema.ts) ловит гонку, которую SELECT выше пропускает. Требует
+    // применённой миграции — без неё этот catch просто не сработает.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("one_active_task") || msg.includes("23505")) {
+      return NextResponse.json(
+        { error: "Уже есть активная задача. Дождитесь её завершения." },
+        { status: 429 },
+      );
+    }
+    throw err;
+  }
 
   // Запускаем analysis в after(). После успеха — fire-and-forget fetch
   // на /api/tasks/[id]/implement, чтобы implement получил свои 25s

@@ -2,6 +2,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
 import { runAnalysis } from "@/lib/agent/runner";
+import { deleteBranch } from "@/lib/github";
 
 const ACTIVE_STATUSES: ("queued" | "analyzing" | "analyzed" | "implementing" | "implemented" | "ready_for_review" | "testing" | "tested" | "deploying")[] = [
   "queued",
@@ -86,6 +87,14 @@ export async function POST(
 
   after(async () => {
     try {
+      // Прошлый прогон мог оставить ветку task/N и открытый PR. Без очистки
+      // повторный createBranch упадёт с 422 → задача снова failed. deleteBranch
+      // безопасен, если ветки уже нет (глотает 404/422).
+      try {
+        await deleteBranch(`task/${taskId}`);
+      } catch (e) {
+        console.error(`retry: не смог удалить ветку task/${taskId}`, e);
+      }
       await runAnalysis(taskId);
       const [updated] = await db
         .select()

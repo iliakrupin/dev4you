@@ -1,8 +1,24 @@
 import { Octokit } from "@octokit/rest";
 import { env } from "@/lib/env";
-import { assertAllowed } from "@/lib/agent/sandbox";
+import { assertAllowed, isProtectedFromDeletion } from "@/lib/agent/sandbox";
 
-export const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
+// fetch с жёстким таймаутом на каждый запрос: GitHub иногда висит, а у нас
+// плотный 25s-бюджет Edge-функции с цепочкой последовательных вызовов.
+// Лучше быстро упасть, чем оборваться на середине finalizeImplement.
+function fetchWithTimeout(ms: number): typeof fetch {
+  return ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    return fetch(input, { ...init, signal: ctrl.signal }).finally(() =>
+      clearTimeout(t),
+    );
+  }) as typeof fetch;
+}
+
+export const octokit = new Octokit({
+  auth: env.GITHUB_TOKEN,
+  request: { fetch: fetchWithTimeout(8_000) },
+});
 
 const owner = env.GITHUB_OWNER;
 const repo = env.GITHUB_REPO;
@@ -55,7 +71,14 @@ export async function commitMultipleFiles(opts: {
   deletions?: string[];
 }): Promise<{ oid: string }> {
   for (const f of opts.files) assertAllowed(f.path);
-  for (const p of opts.deletions ?? []) assertAllowed(p);
+  for (const p of opts.deletions ?? []) {
+    assertAllowed(p);
+    // Защита от удаления структурно важных файлов — на write-границе, а не
+    // только на этапе анализа. Покрывает все пути (analysis/revert/reset).
+    if (isProtectedFromDeletion(p)) {
+      throw new Error(`Файл "${p}" защищён от удаления (PROTECTED_FROM_DELETION)`);
+    }
+  }
 
   const result = await octokit.graphql<{
     createCommitOnBranch: { commit: { oid: string } };

@@ -311,8 +311,10 @@ async function validateNewImports(
 }
 
 /**
- * Применяет список замен к файлу. Каждая find должна найтись в текущем
- * содержимом ровно (может встречаться несколько раз — заменим все вхождения).
+ * Применяет список замен к файлу. Каждая find ищется как буквальная подстрока
+ * и заменяется ТОЛЬКО первое вхождение: replace-all мог тихо испортить
+ * повторяющиеся фрагменты (например короткий `find` вроде "text-sm" затронул бы
+ * все карточки вместо одной целевой).
  */
 function applyEdits(
   source: string,
@@ -323,11 +325,12 @@ function applyEdits(
   const missing: string[] = [];
   for (const e of edits) {
     if (!e.find) continue;
-    if (!result.includes(e.find)) {
+    const idx = result.indexOf(e.find);
+    if (idx === -1) {
       missing.push(e.find.slice(0, 60));
       continue;
     }
-    result = result.split(e.find).join(e.replace);
+    result = result.slice(0, idx) + e.replace + result.slice(idx + e.find.length);
     applied++;
   }
   return { content: result, applied, missing };
