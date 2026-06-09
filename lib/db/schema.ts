@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   serial,
@@ -7,6 +8,7 @@ import {
   integer,
   pgEnum,
   bigint,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const taskStatusEnum = pgEnum("task_status", [
@@ -52,7 +54,18 @@ export const tasks = pgTable("tasks", {
   mergeCommitSha: text("merge_commit_sha"),
   // Ошибка, если failed
   errorMessage: text("error_message"),
-});
+}, (t) => [
+  // Атомарный мьютекс «одна активная задача за раз» на уровне БД. Частичный
+  // уникальный индекс по константе: все активные строки делят один ключ (true),
+  // поэтому второй конкурентный INSERT с активным статусом падает с 23505 —
+  // ловим в app/api/tasks/route.ts и отдаём 429. Закрывает гонку, которую
+  // SELECT-проверка пропускает. Применяется через `pnpm db:push`.
+  uniqueIndex("one_active_task")
+    .on(sql`(true)`)
+    .where(
+      sql`${t.status} in ('queued','analyzing','analyzed','implementing','implemented','testing','tested','deploying','ready_for_review')`,
+    ),
+]);
 
 export const taskEvents = pgTable("task_events", {
   id: serial("id").primaryKey(),

@@ -1,4 +1,8 @@
 import { env } from "@/lib/env";
+import { timingSafeEqualHex } from "@/lib/webhook-verify";
+
+// initData старше этого возраста считаем протухшей (replay-защита).
+const INIT_DATA_TTL_SEC = 86_400; // 24 часа
 
 /**
  * Validates Telegram WebApp initData per HMAC-SHA256 spec.
@@ -11,6 +15,12 @@ export async function validateInitData(
   const hash = url.get("hash");
   if (!hash) return null;
   url.delete("hash");
+
+  // Replay-защита: отклоняем initData без свежего auth_date. Без неё однажды
+  // перехваченная валидная initData действует вечно.
+  const authDate = Number(url.get("auth_date"));
+  if (!Number.isFinite(authDate) || authDate <= 0) return null;
+  if (Date.now() / 1000 - authDate > INIT_DATA_TTL_SEC) return null;
 
   const dataCheckString = [...url.entries()]
     .map(([k, v]) => `${k}=${v}`)
@@ -46,7 +56,7 @@ export async function validateInitData(
   );
   const computed = bufToHex(sig);
 
-  if (computed !== hash) return null;
+  if (!timingSafeEqualHex(computed, hash)) return null;
 
   const userJson = url.get("user");
   if (!userJson) return null;
