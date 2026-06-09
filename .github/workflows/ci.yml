@@ -29,3 +29,9 @@ jobs:
         run: pnpm exec tsc --noEmit
         # tsc не запускает код — env-переменные не нужны.
         # Ловит Module not found, type errors, missing imports до деплоя.
+
+      - name: Next.js build
+        run: SKIP_ENV_VALIDATION=true pnpm build
+        # Ловит ошибки сборки (page data, static generation, bundler),
+        # которые tsc не видит. SKIP_ENV_VALIDATION=true — без реальных
+        # env-переменных в CI; runtime-ошибки Vercel поймает при деплое.
