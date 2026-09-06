@@ -98,7 +98,7 @@ deploying, ready_for_review, merged, failed, cancelled`. Фактически п
 
 OpenAI SDK, `timeout 22c`, `maxRetries 0`. Если задан `OPENROUTER_API_KEY` — внешний OpenRouter
 (любая модель из каталога), иначе локальный Qwen из `QWEN_BASE_URL`. Edge запрещает fetch по
-IP-адресам — URL вида `http://1.2.3.4:9999/v1` прозрачно подменяется на `<ip>.nip.io` (wildcard
+IP-адресам — URL вида `URL без домена прозрачно подменяется на `<ip>.nip.io` (wildcard
 DNS); при OpenRouter не активируется.
 
 ### Sandbox ([`lib/agent/sandbox.ts`](../lib/agent/sandbox.ts))
