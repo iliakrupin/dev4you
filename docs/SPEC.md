@@ -111,14 +111,14 @@
 | Git | Octokit REST + **GraphQL `createCommitOnBranch`** (один коммит на все файлы) |
 | Стенд | ~~Vercel Preview Deployments~~ → **immediate-merge через Octokit** (единая точка мержа, см. §7) |
 | Webhooks | `/api/webhooks/{github,vercel}` — обязательная проверка подписи (HMAC), fail-closed без секрета; мерж из них убран |
-| Хостинг | Vercel **Pro** ($20/мес) — Hobby упирался в квоты |
+| Хостинг | Vercel Hobby; CI и пятиминутный watchdog выполняются собственным GitLab Runner на SER8 |
 | Live UI | `<ListAutoRefresh/>` через `router.refresh()` каждые 3 сек + `<AutoRefresh/>` через `requestIdleCallback` для hard reload по смене commit SHA |
-| Защита от наплыва | mutex (DB-индекс `one_active_task`), rate-limit 60 сек / `telegram_id`, watchdog-cron (добивает зависшие), auto-cleanup task-веток |
+| Защита от наплыва | mutex (DB-индекс `one_active_task`), rate-limit 60 сек / `telegram_id`, watchdog GitLab Schedule (добивает зависшие), auto-cleanup task-веток |
 
 ## 7. Ограничения и решения
 
 ### Vercel preview deployments → "Resource provisioning failed"
-- Vercel в течение дня стабильно отказывал в provisioning preview-окружений для проекта (даже на Pro, даже через `--prebuilt`).
+- Vercel в течение дня стабильно отказывал в provisioning preview-окружений для проекта (в том числе во время проверки Pro, даже через `--prebuilt`).
 - **Workaround:** после открытия PR агент **сразу мержит** через Octokit, не дожидаясь preview build. Production build выступает в роли «теста». Если main упадёт — подписанный webhook ловит `deployment_status=failure` для production и помечает задачу `failed` с ссылкой на лог.
 - Trade-off: нет валидации до merge. Сломанный код агента может попасть в main → prod stuck на старой версии. В roadmap — auto-revert main commit при production failure.
 - **Единая точка мержа:** мерж выполняется ТОЛЬКО в `finalizeImplement`. Прежде его дублировали оба webhook-обработчика (`deployment.succeeded`), что давало гонку тройного мержа (успешная задача могла перезаписаться в `failed`). Теперь webhook'и только фиксируют preview URL / помечают prod-failure, но не мержат.
@@ -147,9 +147,9 @@
 - Несколько одновременных задач = конфликты на git merge (expectedHeadOid устаревает).
 - **Решения:**
   - **Mutex (атомарный)**: новая задача отказывается с 429, если уже есть активная (любой статус не в `merged/failed/cancelled`). Подкреплён частичным уникальным индексом `one_active_task` в БД (все активные строки делят один ключ → второй конкурентный INSERT падает с 23505, ловим в route). SELECT-проверка осталась как быстрый путь с дружелюбным сообщением; индекс — атомарный backstop против гонки.
-  - **Watchdog-cron**: задача, зависшая в активном статусе дольше 5 минут (потерянный self-trigger, упавшая Edge-функция), держала бы мьютекс вечно и блокировала систему. `/api/cron/watchdog` (каждые 5 мин, см. `vercel.json`) помечает такие `failed` и освобождает слот.
+  - **Watchdog**: задача, зависшая в активном статусе дольше 5 минут (потерянный self-trigger, упавшая Edge-функция), держала бы мьютекс вечно и блокировала систему. GitLab Pipeline Schedule вызывает `/api/cron/watchdog` каждые 5 минут; endpoint помечает такие задачи `failed` и освобождает слот.
   - **Rate-limit**: 60 секунд между задачами от одного `telegram_id`. Защита от спама.
-  - **Auto-cleanup веток**: после merge `octokit.git.deleteRef` сразу удаляет `task/N` — освобождает слот Vercel preview branch (на Pro их 100). `retry` тоже чистит ветку перед перезапуском (иначе `createBranch` → 422).
+  - **Auto-cleanup веток**: после merge `octokit.git.deleteRef` сразу удаляет `task/N` — освобождает слот Vercel preview branch. `retry` тоже чистит ветку перед перезапуском (иначе `createBranch` → 422).
 
 ## 8. Безопасность и устойчивость
 

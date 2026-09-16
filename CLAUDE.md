@@ -10,8 +10,9 @@ Multi-agent dev automation. Аналитик ставит задачу в Telegr
 - OpenAI SDK → внутренний Qwen 3.5 27B (OpenAI-compatible API)
 - Octokit REST для git
 - Telegram WebApp initData (HMAC validation)
-- Vercel Pro. Пайплайн-роуты — Edge runtime, `maxDuration = 25` (НЕ 10s как на
-  nodejs/Hobby — это и даёт бюджет на LLM-вызов + Octokit). Webhooks/reset/cron —
+- Vercel Hobby для хостинга; частый cron вынесен в GitLab Schedule на SER8.
+  Пайплайн-роуты — Edge runtime, `maxDuration = 25` — это даёт бюджет на
+  LLM-вызов + Octokit. Webhooks/reset/watchdog —
   nodejs. Источник истины по таймауту — `export const maxDuration` в каждом route.
 
 ## Конвенции

@@ -56,7 +56,7 @@ pnpm dev                     # http://localhost:3000
 | 429 «Слишком часто. Подождите N сек» | Rate-limit: 60 секунд между задачами от одного `telegram_id` |
 | LLM отвечает пустотой / «LLM не вернул валидный JSON» | Проверьте `QWEN_BASE_URL`/`QWEN_MODEL` (`curl $QWEN_BASE_URL/models`); либо подключите OpenRouter через `OPENROUTER_API_KEY` |
 | `Путь "…" вне sandbox` (SandboxError) | Агент выбрал файл вне whitelist — ожидаемая защита, а не баг |
-| Webhook-эндпоинт отвечает 503 | Не задан соответствующий секрет (`GITHUB_WEBHOOK_SECRET` / `VERCEL_WEBHOOK_SECRET` / `CRON_SECRET`) — fail-closed |
+| Webhook-эндпоинт отвечает 503 | Не задан соответствующий секрет (`GITHUB_WEBHOOK_SECRET` / `VERCEL_WEBHOOK_SECRET`) — fail-closed |
 | Reset отвечает 401 | Задан `ADMIN_RESET_TOKEN` — передайте его в `x-admin-token` или `?token=` |
 | Reset: «В tag demo-baseline нет whitelist-файлов» | Нет git-тега `demo-baseline` в репозитории — создайте (см. docs/SPEC.md §9) |
 

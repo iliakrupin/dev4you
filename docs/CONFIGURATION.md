@@ -10,7 +10,9 @@
   zod). Ошибка валидации при билде падает с читаемым списком проблем; для preview/development
   Vercel-окружений и при `SKIP_ENV_VALIDATION=true` валидация пропускается (секреты с галочкой
   «только Production» не должны ронять PR-сборку).
-- **`vercel.json`** — cron-расписание (`/api/cron/watchdog`, `*/5 * * * *`).
+- **GitLab CI/CD Variables** — masked `WATCHDOG_TOKEN` для schedule-job; сам токен не хранится
+  ни в Git, ни в Vercel.
+- **`.gitlab-ci.yml`** — проверки приложения, DevSecOps-фазы и schedule-job watchdog.
 
 ## Переменные окружения
 
@@ -41,20 +43,20 @@
 | `GITHUB_WEBHOOK_SECRET` | Секрет подписи webhook'а GitHub. Без него `/api/webhooks/github` отвечает 503 (fail-closed) | не задан |
 | `VERCEL_WEBHOOK_SECRET` | Signing secret webhook'а Vercel. Без него `/api/webhooks/vercel` отвечает 503 | не задан |
 | `ADMIN_RESET_TOKEN` | Если задан — `/api/admin/reset` требует токен (`x-admin-token` или `?token=`); пусто = публичный POST | не задан |
-| `CRON_SECRET` | Секрет Vercel Cron: Vercel сам шлёт `Authorization: Bearer <CRON_SECRET>`. Без него watchdog отвечает 503 | не задан |
 | `SKIP_ENV_VALIDATION` | `true` — пропустить env-валидацию (используется в CI) | не задан |
 
 ## Обязательное и необязательное — минимум для запуска
 
-- **Локально работающий пайплайн**: блок «Обязательные» выше. Секреты webhook'ов (`*_WEBHOOK_SECRET`,
-  `CRON_SECRET`) локально не нужны — без них соответствующие эндпоинты просто отвечают 503.
-- **Полноценный прод**: + все секреты из таблицы опциональных (fail-closed без них), иначе
-  watchdog не работает, webhook'и не принимают события, reset публичен.
+- **Локально работающий пайплайн**: блок «Обязательные» выше. Секреты webhook'ов
+  (`*_WEBHOOK_SECRET`) локально не нужны — без них соответствующие эндпоинты отвечают 503.
+- **Полноценный прод**: + секреты webhook'ов из таблицы опциональных; `WATCHDOG_TOKEN` хранится
+  отдельно как masked variable проекта GitLab, иначе schedule-job не сможет вызвать watchdog.
 
 ## Секреты
 
-- Все секреты — только через env (`Vercel Environment Variables` / `.env.local`); в коде читаются
-  исключительно через `lib/env.ts`.
+- Секреты приложения — через env (`Vercel Environment Variables` / `.env.local`) и читаются
+  через `lib/env.ts`. `WATCHDOG_TOKEN` живёт только в masked variables GitLab; в коде хранится
+  лишь его SHA-256 для constant-time проверки.
 - `.env.local` в `.gitignore`; `.env.example` содержит только имена и комментарии.
 - `TELEGRAM_BOT_TOKEN` критичен: им подписывается initData — утечка позволяет подделывать
   авторизацию.

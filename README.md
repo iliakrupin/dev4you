@@ -18,7 +18,7 @@ Multi-agent демо-система: пользователь описывает
   «теста» играет production build; упавший prod build ловит подписанный webhook — задача идёт в
   `failed`.
 - Устойчивость: атомарный мьютекс «одна активная задача» (partial unique index `one_active_task`),
-  rate-limit 60 c на `telegram_id`, watchdog-cron каждые 5 минут, подписанные webhook'и
+  rate-limit 60 c на `telegram_id`, GitLab watchdog каждые 5 минут, подписанные webhook'и
   (fail-closed), POST-only reset с опциональным токеном, sandbox + защита от prompt-injection.
 - Не сделано — см. [docs/ROADMAP.md](docs/ROADMAP.md): auto-revert main при prod-failure, очередь
   вместо 429, тёмная/светлая тема Telegram и др.
@@ -47,7 +47,7 @@ pnpm dev                     # http://localhost:3000
       ↓ [finalizeImplement] Octokit: branch task/N + коммит + PR
 [immediate-merge (squash)] → main обновлён → Vercel пересобирает production
       ↓ подписанный webhook deployment_status: упавший prod → задача failed
-[watchdog cron /api/cron/watchdog] — добивает задачи, зависшие > 5 минут
+[GitLab schedule → /api/cron/watchdog] — добивает задачи, зависшие > 5 минут
 ```
 
 - Стек: Next.js 16 App Router (React 19, Tailwind v4), Vercel Postgres / Neon + Drizzle ORM,
