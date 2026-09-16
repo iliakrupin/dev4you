@@ -42,7 +42,9 @@ export default async function HomePage() {
             </p>
           </div>
         ) : (
-          list.map((t) => <TaskCard key={t.id} task={t} />)
+          list.map((t) => (
+            <TaskCard key={`${t.id}-${t.updatedAt.toISOString()}`} task={t} />
+          ))
         )}
       </section>
 

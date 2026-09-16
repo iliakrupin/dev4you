@@ -1,5 +1,6 @@
-'use client';
-import { useState, useEffect } from 'react';
+"use client";
+
+import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { formatRelative } from "@/lib/utils";
 import type { Task } from "@/lib/db/schema";
@@ -17,15 +18,16 @@ const TWO_MINUTES_MS = 2 * 60 * 1000;
 export function TaskCard({ task }: { task: Task }) {
   const [currentSha, setCurrentSha] = useState<string | null>(null);
   const [deleted, setDeleted] = useState(false);
+  const [mergeGracePeriodOver, setMergeGracePeriodOver] = useState(false);
 
   useEffect(() => {
     const fetchVersion = async () => {
       try {
-        const response = await fetch('/api/version');
+        const response = await fetch("/api/version");
         const data = await response.json();
         setCurrentSha(data.sha);
       } catch (error) {
-        console.error('Failed to fetch version:', error);
+        console.error("Failed to fetch version:", error);
       }
     };
     // Сразу на mount — иначе первые 3 сек currentSha=null, и логика
@@ -35,12 +37,18 @@ export function TaskCard({ task }: { task: Task }) {
     return () => clearInterval(interval);
   }, []);
 
-  const isMergedAndTimePassed = () => {
-    if (task.status !== 'merged') return false;
-    const updatedAt = new Date(task.updatedAt).getTime();
-    const now = Date.now();
-    return now - updatedAt > TWO_MINUTES_MS;
-  };
+  useEffect(() => {
+    if (task.status !== "merged") return;
+
+    const mergeGracePeriodEndsAt =
+      new Date(task.updatedAt).getTime() + TWO_MINUTES_MS;
+    const timeout = window.setTimeout(
+      () => setMergeGracePeriodOver(true),
+      Math.max(0, mergeGracePeriodEndsAt - Date.now()),
+    );
+
+    return () => window.clearTimeout(timeout);
+  }, [task.status, task.updatedAt]);
 
   const getProgressWidth = () => {
     const progressMap: Record<string, string> = {
@@ -53,7 +61,12 @@ export function TaskCard({ task }: { task: Task }) {
       testing: "80%",
       tested: "90%",
       deploying: "95%",
-      merged: isMergedAndTimePassed() || currentSha === null || currentSha === task.mergeCommitSha ? "100%" : "95%",
+      merged:
+        mergeGracePeriodOver ||
+        currentSha === null ||
+        currentSha === task.mergeCommitSha
+          ? "100%"
+          : "95%",
       failed: "0%",
       cancelled: "0%",
     };
@@ -91,11 +104,11 @@ export function TaskCard({ task }: { task: Task }) {
   // Не показываем "deploying" пока currentSha не загрузился — иначе при F5
   // карточка моргает "Выкатываю" → "Внедрено" в первые 3 секунды.
   const displayStatus =
-    task.status === 'merged' &&
-    !isMergedAndTimePassed() &&
+    task.status === "merged" &&
+    !mergeGracePeriodOver &&
     currentSha !== null &&
     currentSha !== task.mergeCommitSha
-      ? 'deploying'
+      ? "deploying"
       : task.status;
 
   if (deleted) return null;
@@ -178,7 +191,7 @@ export function TaskCard({ task }: { task: Task }) {
           <span className="font-medium">Ошибка:</span> {task.errorMessage}
         </div>
       )}
-      {task.status === 'failed' && (
+      {task.status === "failed" && (
         <button 
           onClick={handleRetry}
           className="rounded-none bg-[var(--accent)] text-white hover:opacity-90 px-3 py-1.5 text-xs mt-3"

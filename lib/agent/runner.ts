@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db, tasks, taskEvents, type Task, type TaskSpec } from "@/lib/db";
 import { llm, qwenModel } from "./llm";
 import { ANALYSIS_SYSTEM, IMPLEMENT_SYSTEM } from "./prompts";
-import { ALLOWED_HINT, isAllowed, isProtectedFromDeletion } from "./sandbox";
+import { isAllowed, isProtectedFromDeletion } from "./sandbox";
 import {
   commitMultipleFiles,
   createBranch,
@@ -233,11 +233,6 @@ export async function runAnalysis(taskId: number): Promise<void> {
 }
 
 // ---- implement ----
-
-// Старый формат (на случай если LLM вернёт полное содержимое файла)
-const FilesSchema = z.object({
-  files: z.array(z.object({ path: z.string(), content: z.string() })),
-});
 
 // Новый diff-формат: список find/replace для одного файла
 const EditsSchema = z.object({
