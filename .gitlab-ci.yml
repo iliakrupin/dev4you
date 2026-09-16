@@ -1,0 +1,105 @@
+# GitHub остаётся источником кода. Зеркало на SER8 переносит main в GitLab,
+# где собственный runner бесплатно выполняет проверки и watchdog по расписанию.
+include:
+  - project: 'home/home-devsecops'
+    ref: main
+    file: gitlab/phase1-hygiene.yml
+  - project: 'home/home-devsecops'
+    ref: main
+    file: gitlab/phase2-quality.yml
+  - project: 'home/home-devsecops'
+    ref: main
+    file: gitlab/phase3-compliance.yml
+  - project: 'home/home-devsecops'
+    ref: main
+    file: gitlab/phase4-quality.yml
+  - project: 'home/home-devsecops'
+    ref: main
+    file: gitlab/registry.yml
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - when: always
+
+variables:
+  DEVSECOPS_REPO_URL: "http://gitlab-ci-token:${CI_JOB_TOKEN}@192.168.1.21/home/home-devsecops.git"
+  DEVSECOPS_REF: "main"
+  ENFORCEMENT: "gate"
+  PHASE2_ENFORCEMENT: "warn"
+  PHASE4_ENFORCEMENT: "warn"
+  WATCHDOG_URL: "https://dev4you-pi.vercel.app/api/cron/watchdog"
+
+stages: [test, maintenance]
+
+default:
+  tags: [docker]
+
+.skip_watchdog_schedule: &skip_watchdog_schedule
+  - if: '$CI_PIPELINE_SOURCE == "schedule" && $WATCHDOG_RUN == "1"'
+    when: never
+  - when: always
+
+app-check:
+  stage: test
+  image: node:24-bookworm-slim
+  rules: *skip_watchdog_schedule
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@11.5.2 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm test
+    - pnpm lint
+    - SKIP_ENV_VALIDATION=true pnpm build
+
+watchdog:
+  stage: maintenance
+  image: python:3.13-alpine
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $WATCHDOG_RUN == "1"'
+  script:
+    - |
+      python - <<'PY'
+      import json
+      import os
+      import urllib.request
+
+      request = urllib.request.Request(
+          os.environ["WATCHDOG_URL"],
+          headers={"Authorization": f"Bearer {os.environ['WATCHDOG_TOKEN']}"},
+      )
+      with urllib.request.urlopen(request, timeout=20) as response:
+          payload = json.load(response)
+      if payload.get("ok") is not True:
+          raise SystemExit(f"unexpected watchdog response: {payload!r}")
+      print(f"watchdog ok; failed={payload.get('failed', 0)}")
+      PY
+
+# Schedule-пайплайн должен выполнять только watchdog, а не полный набор сканеров
+# каждые пять минут. Для обычного push/MR поведение включённых шаблонов сохраняется.
+devsecops-gitleaks:
+  rules: *skip_watchdog_schedule
+devsecops-trivy-sca:
+  rules: *skip_watchdog_schedule
+devsecops-findings-phase1:
+  rules: *skip_watchdog_schedule
+devsecops-semgrep:
+  rules: *skip_watchdog_schedule
+devsecops-trivy-config:
+  rules: *skip_watchdog_schedule
+devsecops-findings-phase2:
+  rules: *skip_watchdog_schedule
+devsecops-sbom:
+  rules: *skip_watchdog_schedule
+devsecops-lint:
+  rules: *skip_watchdog_schedule
+devsecops-registry:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $WATCHDOG_RUN == "1"'
+      when: never
+    - if: '$DEFECTDOJO_URL == ""'
+      when: never
+    - when: always

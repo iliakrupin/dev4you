@@ -291,7 +291,7 @@ export async function getAllowedFilesAtRef(
 
 /**
  * Удаляет ветку (используется после успешного merge — освобождает слот
- * Vercel preview branches, которых на Pro 100 штук).
+ * Vercel preview branches).
  */
 export async function deleteBranch(branch: string): Promise<void> {
   try {

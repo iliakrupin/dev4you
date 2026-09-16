@@ -54,7 +54,7 @@ deploying, ready_for_review, merged, failed, cancelled`. Фактически п
 - **Мьютекс**: активен только один статус из активных; SELECT-проверка в `POST /api/tasks`
   (дружелюбный 429) + частичный уникальный индекс `one_active_task` в БД как атомарный backstop
   (конкурентный INSERT падает с 23505 → тоже 429).
-- **Watchdog-cron** (`/api/cron/watchdog`, каждые 5 мин из `vercel.json`): задача в активном
+- **Watchdog** (`/api/cron/watchdog`, каждые 5 мин из GitLab Pipeline Schedule): задача в активном
   статусе без `updatedAt` дольше 5 минут → `failed` (`watchdog: …`), слот освобождается.
 - **Rate-limit**: 60 секунд между задачами от одного `telegram_id` (для anon — глобально).
 
@@ -73,7 +73,7 @@ deploying, ready_for_review, merged, failed, cancelled`. Фактически п
 | `/api/admin/reset` | POST | nodejs | 60 | Reset к git-тегу `demo-baseline` (+ удаление задач, `?clearTasks=false`) |
 | `/api/webhooks/vercel` | POST | nodejs | 30 | `deployment.created/succeeded/error/canceled`: preview URL, preview/prod-провал → failed |
 | `/api/webhooks/github` | POST | edge | 25 | `deployment_status`: production failure → задача failed |
-| `/api/cron/watchdog` | GET | nodejs | 30 | Vercel Cron с `Authorization: Bearer <CRON_SECRET>` |
+| `/api/cron/watchdog` | GET | nodejs | 30 | GitLab schedule с masked `WATCHDOG_TOKEN` в Bearer-заголовке |
 | `/api/health` | GET | nodejs | — | Liveness-проба |
 | `/api/version` | GET | nodejs | — | `VERCEL_GIT_COMMIT_SHA` текущего деплоя (для AutoRefresh) |
 
@@ -188,7 +188,8 @@ docs/                  # документация
 
 ## Развёртывание
 
-Vercel Pro + Vercel Postgres; cron и env — из `vercel.json` и Vercel Environment Variables.
+Vercel Hobby + Vercel Postgres; env приложения — в Vercel Environment Variables, а
+пятиминутный watchdog — GitLab Pipeline Schedule на собственном runner SER8.
 Пошагово: [docs/DEPLOYMENT.md](DEPLOYMENT.md); переменные окружения:
 [docs/CONFIGURATION.md](CONFIGURATION.md).
 

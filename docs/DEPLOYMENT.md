@@ -2,9 +2,9 @@
 
 ## Цель
 
-Приложение деплоится на **Vercel Pro** (Hobby упирался в квоты: 10s-таймаут и лимиты Edge) с базой
-**Vercel Postgres / Neon**. Пайплайн-роуты работают в Edge runtime с `maxDuration = 25`;
-webhooks/reset/cron — nodejs (30–60 c). Источник истины по runtime и таймауту —
+Приложение деплоится на **Vercel** с базой **Vercel Postgres / Neon**. Сборку и проверки
+дополнительно выполняет собственный GitLab Runner на SER8. Пайплайн-роуты работают в Edge
+runtime с `maxDuration = 25`; webhooks/reset/watchdog — nodejs (30–60 c). Источник истины —
 `export const runtime` / `export const maxDuration` в каждом route.
 
 Preview-стенды Vercel сейчас отключены workaround'ом (provisioning issue «Resource provisioning
@@ -15,7 +15,7 @@ docs/SPEC.md §7.
 
 | Окружение | Что нужно |
 |---|---|
-| Production (ветка `main`) | Все переменные из docs/CONFIGURATION.md, включая секреты webhook'ов и `CRON_SECRET` |
+| Production (ветка `main`) | Все переменные приложения из docs/CONFIGURATION.md, включая секреты webhook'ов |
 | Preview | Env-валидация скипается (`lib/env.ts`), но preview-деплой для task-веток фактически не используется (см. workaround) |
 | Локально | `.env.local` + `pnpm db:push` против той же или личной БД |
 
@@ -26,7 +26,7 @@ docs/SPEC.md §7.
    автоматически.
 3. Заполните остальные переменные окружения по docs/CONFIGURATION.md. Обязательные секреты для
    активной защиты: `GITHUB_WEBHOOK_SECRET`, `VERCEL_WEBHOOK_SECRET` (без них webhook-эндпоинты
-   отвечают 503), `CRON_SECRET` (без него watchdog отвечает 503), `ADMIN_RESET_TOKEN`
+   отвечают 503), `ADMIN_RESET_TOKEN`
    (опционально; задан — reset требует токен).
 4. Примените схему к production-БД локально: `pnpm db:push` с production `DATABASE_URL` —
    создаёт таблицы **и** индекс `one_active_task`.
@@ -36,8 +36,10 @@ docs/SPEC.md §7.
      `deployment.canceled`).
    - GitHub repo → Settings → Webhooks на `https://<домен>/api/webhooks/github`,
      content type `application/json`, событие **Deployment statuses**.
-6. Watchdog-cron (`/api/cron/watchdog`, каждые 5 минут) подключается автоматически из
-   [`vercel.json`](../vercel.json) — вручную ничего делать не нужно.
+6. Подключите репозиторий к зеркалу GitHub → GitLab и создайте GitLab Pipeline Schedule
+   `*/5 * * * *` с переменной `WATCHDOG_RUN=1`. Masked project variable `WATCHDOG_TOKEN`
+   должна совпадать с digest в `lib/watchdog-auth.ts`; обычный CI и schedule описаны в
+   [`.gitlab-ci.yml`](../.gitlab-ci.yml).
 7. В `@BotFather`: `/newapp` → URL = `https://<ваш-домен>` — Mini App в Telegram.
 
 ## Обновление
@@ -62,7 +64,7 @@ docs/SPEC.md §7.
 |---|---|
 | Упавший production build задачи | Подписанный GitHub webhook `deployment_status` (production failure) → задача `failed` с ссылкой на лог |
 | Упавший/отменённый деплой ветки | Vercel webhook `deployment.error/canceled` → задача `failed` |
-| Зависшие задачи | Watchdog-cron каждые 5 минут: активный статус >5 мин без обновления → `failed`, слот мьютекса освобождён |
+| Зависшие задачи | GitLab schedule каждые 5 минут вызывает watchdog: активный статус >5 мин без обновления → `failed`, слот мьютекса освобождён |
 | Здоровье приложения | `GET /api/health` → `{"ok":true}`; `GET /api/version` → текущий commit SHA |
 | Таймлайн шагов задачи | Таблица `task_events` (stage/kind/message/metadata) — виден на карточке задачи |
 | Логи функций | Vercel Dashboard → Deployments → Functions (console.error пайплайна) |
@@ -71,5 +73,5 @@ docs/SPEC.md §7.
 
 - [docs/CONFIGURATION.md](CONFIGURATION.md) — переменные окружения для Vercel.
 - [docs/SPEC.md](SPEC.md) — ограничения Vercel и принятые обходные решения (§7, §9).
-- [docs/ARCHITECTURE.md](ARCHITECTURE.md) — как webhook'и и cron вписаны в пайплайн.
+- [docs/ARCHITECTURE.md](ARCHITECTURE.md) — как webhook'и и watchdog вписаны в пайплайн.
 - [docs/GETTING-STARTED.md](GETTING-STARTED.md) — локальный запуск перед деплоем.

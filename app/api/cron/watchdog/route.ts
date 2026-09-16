@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { and, eq, inArray, lt } from "drizzle-orm";
 import { db, tasks, taskEvents } from "@/lib/db";
-import { env } from "@/lib/env";
+import { isWatchdogAuthorized } from "@/lib/watchdog-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -25,15 +25,11 @@ const ACTIVE_STATUSES = [
 const STUCK_AFTER_MS = 5 * 60_000; // 5 минут без updatedAt = зависла
 
 /**
- * Vercel Cron дёргает этот эндпоинт по расписанию (см. vercel.json) и шлёт
- * заголовок Authorization: Bearer <CRON_SECRET>. Без секрета — fail-closed.
+ * GitLab CI schedule дёргает этот эндпоинт каждые 5 минут и шлёт masked
+ * WATCHDOG_TOKEN в заголовке Authorization. Любой другой запрос отклоняется.
  */
 export async function GET(req: NextRequest) {
-  const secret = env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: "CRON_SECRET не задан" }, { status: 503 });
-  }
-  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!isWatchdogAuthorized(req.headers.get("authorization"))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

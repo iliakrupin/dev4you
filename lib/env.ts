@@ -30,7 +30,6 @@ export const env = createEnv({
     GITHUB_WEBHOOK_SECRET: z.string().optional(),
     VERCEL_WEBHOOK_SECRET: z.string().optional(),
     ADMIN_RESET_TOKEN: z.string().optional(),
-    CRON_SECRET: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: urlLike,
@@ -52,7 +51,6 @@ export const env = createEnv({
     GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET,
     VERCEL_WEBHOOK_SECRET: process.env.VERCEL_WEBHOOK_SECRET,
     ADMIN_RESET_TOKEN: process.env.ADMIN_RESET_TOKEN,
-    CRON_SECRET: process.env.CRON_SECRET,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
   emptyStringAsUndefined: true,
