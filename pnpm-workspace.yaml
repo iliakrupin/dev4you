@@ -2,3 +2,9 @@ allowBuilds:
   esbuild: true
   sharp: false
   unrs-resolver: false
+
+# Next/styled-jsx allow older transitive versions; pin the first patched
+# releases until their dependency ranges move forward.
+overrides:
+  baseline-browser-mapping: 2.11.0
+  browserslist: 4.28.7

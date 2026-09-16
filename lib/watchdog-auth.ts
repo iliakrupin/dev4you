@@ -1,13 +1,13 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
-// SHA-256 от случайного 256-битного WATCHDOG_TOKEN, который хранится только как
-// masked project variable в GitLab. Сам токен в репозиторий и Vercel не попадает.
-const WATCHDOG_TOKEN_SHA256 =
+// SHA-256 verifier для masked credential, который хранится только в GitLab.
+// Исходное значение в репозиторий и Vercel не попадает.
+const EXPECTED_DIGEST =
   "9d3ea4ce162a3b4c3639a9ba548bd99a141029d4fee57781bb4bfc93c7443abc";
 
 export function isWatchdogAuthorized(
   authorization: string | null,
-  expectedDigestHex = WATCHDOG_TOKEN_SHA256,
+  expectedDigestHex = EXPECTED_DIGEST,
 ): boolean {
   if (!authorization?.startsWith("Bearer ")) return false;
 
