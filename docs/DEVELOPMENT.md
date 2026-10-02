@@ -14,12 +14,13 @@
 | `pnpm build` | Production-сборка Next.js |
 | `pnpm start` | Запуск собранного приложения |
 | `pnpm lint` | ESLint |
+| `pnpm test` | Node test runner над `tests/*.test.mjs` |
 | `pnpm db:push` | Применить схему Drizzle прямо в БД (`drizzle-kit push --force`) — создаёт таблицы и индекс `one_active_task` |
 | `pnpm db:generate` | Сгенерировать SQL-миграции из схемы в `drizzle/` |
 | `pnpm db:studio` | Drizzle Studio — GUI для просмотра БД |
 
-Тестового раннера в проекте нет (нет тест-скрипта, тестовых зависимостей и тестовых файлов).
-В планах — visual regression через Playwright (см. docs/ROADMAP.md).
+Тесты запускаются встроенным Node test runner. Visual regression через Playwright пока
+остаётся в планах (см. docs/ROADMAP.md).
 
 ## Стиль кода
 
@@ -69,6 +70,11 @@
 3. `SKIP_ENV_VALIDATION=true pnpm build` — сборка Next.js без реальных env.
 
 Именно эти две проверки стоит гнать локально перед PR.
+
+GitLab mirror дополнительно запускает `pnpm test`, `pnpm lint` и production build через
+`.gitlab-ci.yml`, а также общие DevSecOps-фазы. Этот pipeline сейчас асинхронный и не
+блокирует immediate merge или Vercel production. Текущая граница и способ сверки точного
+SHA описаны в [docs/DEPLOYMENT.md](DEPLOYMENT.md#текущая-граница-ci).
 
 ## Куда дальше
 

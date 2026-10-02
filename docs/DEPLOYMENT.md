@@ -11,6 +11,23 @@ Preview-стенды Vercel сейчас отключены workaround'ом (pro
 failed», даже на Pro): агент мержит PR сразу, роль «теста» играет production build —
 docs/SPEC.md §7.
 
+## Текущая граница CI
+
+GitLab получает код через зеркало и запускает проверки конкретного SHA, но сейчас этот
+pipeline не является блокирующим гейтом для Vercel production. Агент делает immediate
+merge, push в `main` сразу запускает Vercel, а pipeline зеркала может завершиться позже.
+
+Следствия:
+
+- зелёный GitLab pipeline другого SHA ничего не доказывает про текущий production;
+- успешный merge не означает, что GitLab проверил merge SHA;
+- успешный GitLab pipeline не означает, что Vercel выкатил этот SHA;
+- фактический production SHA проверяется через `/api/version` и Vercel deployment;
+- до реализации блокирующего exact-SHA gate production build остаётся частью
+  post-merge проверки, а не безопасным pre-merge допуском.
+
+Незакрытое архитектурное решение записано в [docs/ROADMAP.md](ROADMAP.md).
+
 ## Окружения
 
 | Окружение | Что нужно |
@@ -45,6 +62,8 @@ docs/SPEC.md §7.
 ## Обновление
 
 - Push/merge в `main` → Vercel автоматически собирает и выкатывает production.
+- GitLab pipeline зеркала проверяет тот же commit асинхронно и сейчас не задерживает этот
+  deploy. При расследовании всегда сопоставляйте точные SHA GitHub, GitLab и Vercel.
 - После деплоя `/api/version` отдаёт новый `VERCEL_GIT_COMMIT_SHA`; `<AutoRefresh/>` на UI
   замечает смену SHA и перезагружает страницу — пользователи увидят обновление без действий.
 - Схема БД меняется вручную: `pnpm db:push` с production `DATABASE_URL`.
@@ -68,6 +87,17 @@ docs/SPEC.md §7.
 | Здоровье приложения | `GET /api/health` → `{"ok":true}`; `GET /api/version` → текущий commit SHA |
 | Таймлайн шагов задачи | Таблица `task_events` (stage/kind/message/metadata) — виден на карточке задачи |
 | Логи функций | Vercel Dashboard → Deployments → Functions (console.error пайплайна) |
+
+## Проверка exact SHA
+
+Для каждого изменения различайте три независимых факта:
+
+1. GitHub `main` указывает на ожидаемый merge SHA.
+2. GitLab mirror содержит этот SHA и его pipeline завершился успешно.
+3. `/api/version` и Vercel deployment показывают тот же SHA.
+
+Пока отсутствует блокирующая связь между пунктами 2 и 3, расхождение считается известным
+риском, а не успешным деплоем.
 
 ## Куда дальше
 
