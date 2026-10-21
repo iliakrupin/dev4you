@@ -57,6 +57,8 @@ merge, push в `main` сразу запускает Vercel, а pipeline зерк
    `*/5 * * * *` с переменной `WATCHDOG_RUN=1`. Masked project variable `WATCHDOG_TOKEN`
    должна совпадать с digest в `lib/watchdog-auth.ts`; обычный CI и schedule описаны в
    [`.gitlab-ci.yml`](../.gitlab-ci.yml).
+   Джоба `watchdog` ходит к Vercel через egress-прокси pve в tailnet (`HTTPS_PROXY` в
+   `.gitlab-ci.yml`): из контейнеров runner01 прямой TLS к адресам Vercel обрывается.
 7. В `@BotFather`: `/newapp` → URL = `https://<ваш-домен>` — Mini App в Telegram.
 
 ## Обновление
