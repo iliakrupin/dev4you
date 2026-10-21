@@ -60,6 +60,14 @@ watchdog:
   image: python:3.13-alpine
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $WATCHDOG_RUN == "1"'
+  # Контейнеры runner01 резолвят dev4you-pi.vercel.app через DNS из daemon.json
+  # (100.100.100.100, 1.1.1.1) в адреса Vercel 216.198.79.3 / 64.29.17.3, на которых
+  # TLS-рукопожатие из РФ обрывается по таймауту; хост runner01 своим резолвером получает
+  # другие адреса и проходит (замер 21.10.2026). Поэтому только эта джоба идёт через
+  # точечный egress-прокси pve в tailnet — opt-in путь для CI из home-infra
+  # (host_vars/pve.yml). Остальные джобы прямого выхода не получают.
+  variables:
+    HTTPS_PROXY: "http://100.95.71.43:10809"
   script:
     - |
       python - <<'PY'
